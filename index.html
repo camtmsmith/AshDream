@@ -45,6 +45,16 @@
   .roster-row-btn.danger{color:#B5292E;border-color:#E8C7C7;}
   .roster-row-btn.danger:hover{background:#FBEAEA;}
   .roster-manage-show-hidden{display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);margin-top:10px;padding-top:10px;border-top:1px solid var(--line);cursor:pointer;}
+
+  /* ---- shared-password access gate ---- */
+  .access-gate{position:fixed;inset:0;z-index:1000;background:linear-gradient(135deg,var(--ink) 0%,var(--ink-2) 100%);display:flex;align-items:center;justify-content:center;padding:20px;}
+  .access-gate.unlocked{display:none;}
+  .access-gate-card{background:var(--panel);border-radius:12px;padding:32px 28px;max-width:340px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4);}
+  .access-gate-title{font-family:'Oswald',sans-serif;font-weight:700;font-size:20px;letter-spacing:.03em;text-transform:uppercase;color:var(--ink);margin:0 0 8px;}
+  .access-gate-desc{font-size:13px;color:var(--slate);margin:0 0 18px;line-height:1.5;}
+  .access-gate-card input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:6px;font-family:'Inter',sans-serif;font-size:14px;margin-bottom:12px;box-sizing:border-box;}
+  .access-gate-card .header-btn{width:100%;padding:10px;font-size:12px;}
+  .access-gate-error{color:var(--mat-red);font-size:12px;margin:12px 0 0;}
   .status-chip{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:100px;padding:6px 14px;display:flex;align-items:center;gap:8px;white-space:nowrap;}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--spring);}
   .header-btn{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.03em;background:var(--gold);color:var(--ink);border:none;border-radius:6px;padding:7px 14px;cursor:pointer;font-weight:700;}
@@ -185,7 +195,7 @@
   table.rota th:first-child, table.rota td.tick-label{position:sticky;left:0;z-index:2;background:var(--panel);box-shadow:2px 0 4px -2px rgba(0,0,0,.15);}
   table.rota th:first-child{z-index:3;}
   .tick-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);text-align:left;padding-left:4px;white-space:nowrap;}
-  .rota-select{min-width:118px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;padding:7px 6px;border-radius:6px;cursor:pointer;border:1px solid var(--line);background:var(--idle);color:var(--slate);text-align:center;text-align-last:center;}
+  .rota-select{width:100%;min-width:118px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;padding:7px 6px;border-radius:6px;cursor:pointer;border:1px solid var(--line);background:var(--idle);color:var(--slate);text-align:center;text-align-last:center;}
   .rota-select option{color:#000;background:#fff;font-weight:500;}
   .rota-dash{color:var(--slate);font-size:13px;}
   .hint{font-size:12px;color:var(--slate);margin-top:10px;}
@@ -246,6 +256,16 @@
 </style>
 </head>
 <body>
+
+<div class="access-gate" id="accessGate">
+  <div class="access-gate-card">
+    <p class="access-gate-title">Gym Org Pro</p>
+    <p class="access-gate-desc">Enter the shared password to view or edit this schedule.</p>
+    <input type="password" id="accessGatePassword" placeholder="Password" autocomplete="off">
+    <button type="button" class="header-btn" id="accessGateSubmit">Unlock</button>
+    <p class="access-gate-error" id="accessGateError" style="display:none;">Incorrect password — try again.</p>
+  </div>
+</div>
 
 <div class="top-bar">
 <div class="board-header">
@@ -487,8 +507,40 @@
   const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const PALETTE = ['#B5292E','#1F7A5C','#C9A227','#2A5CAA','#7A4FA3','#B5602E','#3E8E8E','#8C3F63','#4B7B2A','#A6437A'];
   const STORAGE_KEY = 'gym-scheduler-state-v4';
-  const APP_VERSION = 'v2.0';
+  const APP_VERSION = 'v2.1';
   document.getElementById('versionTag').textContent = ' - ' + APP_VERSION.toUpperCase();
+
+  // ---------------- shared-password access gate ----------------
+  // A lightweight deterrent, not real security — the passwords sit in this
+  // file's plain-text source, so anyone determined enough to view-source can
+  // find them. It's meant to keep casual/random visitors out, not to replace
+  // proper access control. For that, Firebase Authentication is the right tool.
+  const ACCESS_PASSWORD = 'GymOrgPro';       // required to open/edit any roster
+  const UNHIDE_PASSWORD = 'GymOrgPro!';      // required to reveal hidden rosters
+  const ACCESS_UNLOCK_KEY = 'gym-scheduler-unlocked';
+
+  function checkAccessGate(){
+    const gate = document.getElementById('accessGate');
+    if(localStorage.getItem(ACCESS_UNLOCK_KEY) === 'true') gate.classList.add('unlocked');
+  }
+  function attemptUnlock(){
+    const input = document.getElementById('accessGatePassword');
+    const errorEl = document.getElementById('accessGateError');
+    if(input.value === ACCESS_PASSWORD){
+      localStorage.setItem(ACCESS_UNLOCK_KEY, 'true');
+      document.getElementById('accessGate').classList.add('unlocked');
+      errorEl.style.display = 'none';
+    } else {
+      errorEl.style.display = 'block';
+      input.value = '';
+      input.focus();
+    }
+  }
+  document.getElementById('accessGateSubmit').addEventListener('click', attemptUnlock);
+  document.getElementById('accessGatePassword').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') attemptUnlock();
+  });
+  checkAccessGate();
 
   // ---------------- optional: live multi-user sync (Firebase Realtime Database) ----------------
   // This app normally saves to Claude.ai's storage, or to this one browser's
@@ -1099,6 +1151,14 @@
     }
   });
   document.getElementById('showHiddenRostersCb').addEventListener('change', (e) => {
+    if(e.target.checked){
+      const pw = window.prompt('Password to view hidden rosters:');
+      if(pw !== UNHIDE_PASSWORD){
+        e.target.checked = false;
+        showFlash('Incorrect password — hidden rosters stay hidden.');
+        return;
+      }
+    }
     showHiddenRosters = e.target.checked;
     renderRosterManagePanel();
   });
