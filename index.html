@@ -331,7 +331,7 @@
   const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const PALETTE = ['#B5292E','#1F7A5C','#C9A227','#2A5CAA','#7A4FA3','#B5602E','#3E8E8E','#8C3F63','#4B7B2A','#A6437A'];
   const STORAGE_KEY = 'gym-scheduler-state-v4';
-  const APP_VERSION = 'v1.7';
+  const APP_VERSION = 'v1.7a';
   document.getElementById('versionTag').textContent = '· ' + APP_VERSION;
 
   function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -1527,23 +1527,43 @@
   }
 
   // ===================== OVERVIEW =====================
-  function computeUsageCounts(dayFilter){
+  function getStationGroups(){
+    // Combine stations that share the same first word (e.g. "Floor", "Floor 1", "Floor 2" -> "Floor")
+    const groups = {};
+    const order = [];
+    state.stations.forEach(st => {
+      const firstWord = st.name.trim().split(/\s+/)[0] || st.name;
+      const key = firstWord.toLowerCase();
+      if(!groups[key]){
+        groups[key] = { key, name: firstWord, stationIds: [] };
+        order.push(key);
+      }
+      groups[key].stationIds.push(st.id);
+    });
+    return order.map(k => groups[k]);
+  }
+
+  function computeUsageCounts(dayFilter, groups){
+    const stationIdToGroupKey = {};
+    groups.forEach(g => g.stationIds.forEach(id => { stationIdToGroupKey[id] = g.key; }));
+
     const counts = {};
-    state.squads.forEach(s => { counts[s.id] = {}; state.stations.forEach(st => counts[s.id][st.id] = 0); });
+    state.squads.forEach(s => { counts[s.id] = {}; groups.forEach(g => counts[s.id][g.key] = 0); });
     Object.entries(state.allocations).forEach(([dayIndex, day]) => {
       if(dayFilter && !dayFilter(Number(dayIndex))) return;
       Object.values(day).forEach(sqMap => {
         Object.entries(sqMap).forEach(([sqId, stId]) => {
-          if(counts[sqId] && stId in counts[sqId]) counts[sqId][stId]++;
+          const groupKey = stationIdToGroupKey[stId];
+          if(counts[sqId] && groupKey && groupKey in counts[sqId]) counts[sqId][groupKey]++;
         });
       });
     });
     return counts;
   }
 
-  function buildUsageTable(counts, activeSquads){
-    const activeStations = state.stations.filter(st => activeSquads.some(s => counts[s.id][st.id] > 0));
-    if(activeStations.length === 0){
+  function buildUsageTable(counts, activeSquads, groups){
+    const activeGroups = groups.filter(g => activeSquads.some(s => counts[s.id][g.key] > 0));
+    if(activeGroups.length === 0){
       const p = document.createElement('p');
       p.className = 'empty-note';
       p.textContent = 'No station usage yet for the selected squad(s).';
@@ -1556,7 +1576,7 @@
     const trh = document.createElement('tr');
     const thClass = document.createElement('th'); thClass.className = 'class-col'; thClass.textContent = 'Squad';
     trh.appendChild(thClass);
-    activeStations.forEach(st => { const th = document.createElement('th'); th.textContent = st.name; trh.appendChild(th); });
+    activeGroups.forEach(g => { const th = document.createElement('th'); th.textContent = g.name; trh.appendChild(th); });
     const thTotal = document.createElement('th'); thTotal.textContent = 'Total Blocks';
     trh.appendChild(thTotal);
     thead.appendChild(trh);
@@ -1569,8 +1589,8 @@
       tdClass.innerHTML = `<div class="class-cell"><span class="swatch" style="background:${s.color}"></span>${s.name}</div>`;
       tr.appendChild(tdClass);
       let total = 0;
-      activeStations.forEach(st => {
-        const n = counts[s.id][st.id];
+      activeGroups.forEach(g => {
+        const n = counts[s.id][g.key];
         total += n;
         const td = document.createElement('td');
         td.textContent = n;
@@ -1624,6 +1644,7 @@
       return;
     }
 
+    const groups = getStationGroups();
     const sections = [
       ['Week 1', d => d < 7],
       ['Week 2', d => d >= 7],
@@ -1634,7 +1655,7 @@
       title.className = 'roster-day-title';
       title.textContent = label;
       el.appendChild(title);
-      el.appendChild(buildUsageTable(computeUsageCounts(filter), activeSquads));
+      el.appendChild(buildUsageTable(computeUsageCounts(filter, groups), activeSquads, groups));
     });
   }
 
