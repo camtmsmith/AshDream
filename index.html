@@ -17,14 +17,14 @@
   }
   *{box-sizing:border-box;}
   html{overflow-x:hidden;}
-  body{margin:0;background:var(--chalk);color:var(--ink);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+  body{margin:0;background:var(--chalk);color:var(--ink);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;}
   .wrap{max-width:1280px;margin:0 auto;padding:0 20px 64px;}
 
-  .board-header{background:linear-gradient(135deg,var(--ink) 0%,var(--ink-2) 100%);color:#fff;padding:34px 20px 28px;}
-  .board-header-inner{max-width:1280px;margin:0 auto;display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:14px;}
-  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin:0 0 6px;}
-  h1{font-family:'Oswald',sans-serif;font-weight:600;font-size:clamp(28px,4vw,42px);letter-spacing:.01em;margin:0;text-transform:uppercase;}
-  .header-sub{font-size:14px;color:#C7CEE0;margin-top:6px;max-width:560px;line-height:1.5;}
+  .top-bar{position:sticky;top:0;z-index:20;}
+  .board-header{background:linear-gradient(135deg,var(--ink) 0%,var(--ink-2) 100%);color:#fff;padding:10px 20px;}
+  .board-header-inner{max-width:1280px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;}
+  .header-title-line{font-family:'Oswald',sans-serif;font-weight:600;font-size:14px;letter-spacing:.03em;text-transform:uppercase;margin:0;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .header-title-line .version{font-family:'JetBrains Mono',monospace;font-size:11px;color:#8A93AC;text-transform:none;margin-left:8px;letter-spacing:.05em;}
   .status-chip{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:100px;padding:8px 16px;display:flex;align-items:center;gap:8px;white-space:nowrap;}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--spring);}
   .header-btn{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.03em;background:var(--gold);color:var(--ink);border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-weight:700;}
@@ -32,8 +32,11 @@
   .header-btn.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);}
   .header-btn.ghost:hover{background:rgba(255,255,255,.08);}
 
-  .tab-bar{background:var(--ink-2);border-bottom:3px solid var(--gold);position:sticky;top:0;z-index:10;}
-  .tab-bar-inner{max-width:1280px;margin:0 auto;padding:0 20px;display:flex;gap:4px;overflow-x:auto;}
+  .tab-bar{background:var(--ink-2);border-bottom:3px solid var(--gold);}
+  .tab-bar-inner{max-width:1280px;margin:0 auto;padding:0 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .tab-bar-tabs{display:flex;gap:4px;overflow-x:auto;}
+  .tab-bar-actions{display:flex;gap:8px;flex-wrap:wrap;padding:8px 0;flex-shrink:0;}
+  .tab-bar-actions .header-btn{padding:7px 12px;font-size:10px;}
   .tab-btn{font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;background:none;border:none;color:#AAB3CB;padding:14px 18px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-3px;white-space:nowrap;}
   .tab-btn:hover{color:#fff;}
   .tab-btn.active{color:#fff;border-bottom-color:var(--gold);}
@@ -43,6 +46,10 @@
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px 24px;margin:22px 0;}
   .panel-title{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.04em;font-size:15px;font-weight:600;margin:0 0 4px;}
   .panel-desc{font-size:13px;color:var(--slate);margin:0 0 18px;line-height:1.5;}
+
+  .setup-quickjump{position:sticky;top:var(--topbar-height,84px);z-index:15;background:var(--chalk);padding:14px 0;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .setup-quickjump label{font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--slate);}
+  .setup-quickjump select{font-family:'Inter',sans-serif;font-weight:600;font-size:13px;padding:8px 10px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;min-width:200px;}
 
   /* ---- squads / stations / coaches lists ---- */
   .item-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;transition:border-top-color .1s ease;}
@@ -54,6 +61,19 @@
   .item-row:last-child{border-bottom:none;}
   .swatch{width:14px;height:14px;border-radius:3px;flex-shrink:0;display:inline-block;}
   .swatch-btn{width:20px;height:20px;border-radius:5px;border:1px solid var(--line);cursor:pointer;flex-shrink:0;}
+
+  /* ---- color picker (preset palette + custom) ---- */
+  .color-picker{position:relative;flex-shrink:0;}
+  .color-swatch-btn{width:20px;height:20px;border-radius:5px;border:1px solid var(--line);cursor:pointer;padding:0;display:block;}
+  .color-popover{position:absolute;top:26px;left:0;z-index:30;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;box-shadow:0 10px 28px rgba(0,0,0,.2);width:168px;display:none;}
+  .color-popover.open{display:block;}
+  .color-popover-label{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--slate);margin:0 0 8px;}
+  .color-popover-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px;}
+  .color-popover-grid button{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);cursor:pointer;padding:0;}
+  .color-popover-grid button.selected{outline:2px solid var(--ink);outline-offset:1px;}
+  .color-popover-custom{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line);padding-top:10px;}
+  .color-popover-custom label{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--slate);text-transform:uppercase;letter-spacing:.05em;}
+  .color-popover-custom input[type="color"]{width:26px;height:26px;border:1px solid var(--line);border-radius:6px;padding:0;cursor:pointer;}
   .name-input{font-family:'Inter',sans-serif;font-weight:600;font-size:14px;border:1px solid transparent;background:transparent;padding:6px 8px;border-radius:6px;min-width:160px;color:var(--ink);flex:1;}
   .name-input:hover,.name-input:focus{border-color:var(--line);background:var(--chalk);outline:none;}
   .remove-btn{background:none;border:none;color:var(--slate);cursor:pointer;font-size:13px;padding:6px 8px;border-radius:6px;}
@@ -76,7 +96,13 @@
   /* ---- training schedule ---- */
   .squad-block{border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:14px;}
   .squad-block-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-weight:700;font-size:14px;}
-  .day-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
+  .schedule-view-toggle{display:flex;align-items:center;gap:8px;margin-bottom:18px;flex-wrap:wrap;}
+  .view-toggle-label{font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--slate);margin-right:2px;}
+  .view-toggle-btn{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.04em;text-transform:uppercase;background:var(--idle);color:var(--slate);border:1px solid var(--line);border-radius:100px;padding:7px 14px;cursor:pointer;font-weight:600;}
+  .view-toggle-btn:hover:not(.active){background:var(--chalk);border-color:var(--slate);}
+  .view-toggle-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .overview-filter-actions{display:flex;gap:8px;margin-bottom:14px;}
+  .day-grid{display:grid;grid-template-columns:repeat(var(--dg-cols,7),1fr);gap:8px;}
   .day-card{border:1px solid var(--line);border-radius:8px;padding:8px 6px;background:var(--chalk);}
   .day-card .abbr{font-family:'Oswald',sans-serif;font-size:12px;font-weight:600;text-transform:uppercase;text-align:center;margin-bottom:4px;}
   .day-card .off-hint{font-size:10px;color:var(--slate);font-family:'JetBrains Mono',monospace;text-align:center;cursor:pointer;padding:6px 0;}
@@ -158,7 +184,7 @@
 
   @media print{
     html, body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:exact; }
-    .board-header, .tab-bar, .wrap > .tab-panel, footer, .flash{ display:none !important; }
+    .board-header, .tab-bar, .top-bar, .wrap > .tab-panel, footer, .flash{ display:none !important; }
     #printArea{ display:block !important; }
     .print-day{ page-break-after:always; }
     .print-day:last-child{ page-break-after:auto; }
@@ -169,23 +195,31 @@
     .day-grid{grid-template-columns:repeat(1,1fr);}
     .day-cards{grid-template-columns:repeat(4,1fr);}
     .rota-select{min-width:70px;font-size:10px;}
+    .tab-bar-inner{justify-content:flex-start;}
+    .tab-bar-actions{width:100%;padding:8px 0 10px;}
   }
 </style>
 </head>
 <body>
 
+<div class="top-bar">
 <div class="board-header">
   <div class="board-header-inner">
-    <div>
-      <p class="eyebrow">Gym Program · Scheduling <span id="versionTag" style="color:#8A93AC;">· v1.0</span></p>
-      <h1 id="mainTitle">Rotation Scheduler</h1>
-      <p class="header-sub">Define squads, stations, and coaches, set session times (including separate morning/afternoon sessions), then allocate a station per squad per slot — conflicts are blocked automatically.</p>
-    </div>
+    <p class="header-title-line"><span id="mainTitle">Gym Org Pro</span><span class="version" id="versionTag">· v1.0</span></p>
     <div class="status-chip" id="statusChip"><span class="dot"></span><span id="statusChipText">Loading…</span></div>
   </div>
-  <div class="board-header-inner" style="padding-top:0;">
-    <div></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+</div>
+
+<div class="tab-bar">
+  <div class="tab-bar-inner">
+    <div class="tab-bar-tabs">
+      <button class="tab-btn" data-tab="setup">01 · Setup</button>
+      <button class="tab-btn" data-tab="schedule">02 · Training Schedule</button>
+      <button class="tab-btn" data-tab="rotations">03 · Rotations</button>
+      <button class="tab-btn" data-tab="staffing">04 · Staffing</button>
+      <button class="tab-btn" data-tab="overview">05 · Overview</button>
+    </div>
+    <div class="tab-bar-actions">
       <button class="header-btn" id="printBtn">PRINT 14-DAY PDF</button>
       <button class="header-btn" id="exportBtn">EXPORT BACKUP</button>
       <button class="header-btn ghost" id="importBtn">IMPORT BACKUP</button>
@@ -193,24 +227,29 @@
     </div>
   </div>
 </div>
-
-<div class="tab-bar">
-  <div class="tab-bar-inner">
-    <button class="tab-btn" data-tab="setup">01 · Setup</button>
-    <button class="tab-btn" data-tab="schedule">02 · Training Schedule</button>
-    <button class="tab-btn" data-tab="rotations">03 · Rotations</button>
-    <button class="tab-btn" data-tab="staffing">04 · Staffing</button>
-    <button class="tab-btn" data-tab="overview">05 · Overview</button>
-  </div>
 </div>
 
 <div class="wrap">
 
   <!-- ===================== SETUP ===================== -->
   <div class="tab-panel" id="tab-setup">
-    <div class="panel">
+    <div class="setup-quickjump" id="setupQuickjump">
+      <label for="setupJump">Jump to</label>
+      <select id="setupJump">
+        <option value="">Choose a section…</option>
+        <option value="panel-program-details">Program Details</option>
+        <option value="panel-rotation-settings">Rotation Settings</option>
+        <option value="panel-coaching-levels">Coaching Levels</option>
+        <option value="panel-squads">Squads</option>
+        <option value="panel-stations">Gym Stations</option>
+        <option value="panel-coaches">Coaches</option>
+        <option value="panel-conflicts">Station Conflicts</option>
+      </select>
+    </div>
+
+    <div class="panel" id="panel-program-details">
       <p class="panel-title">Program Details</p>
-      <p class="panel-desc">Shown in the header as "Rotation Scheduler {Gym Name} - {Location}". Leave either blank to omit it.</p>
+      <p class="panel-desc">Shown in the header as "Gym Org Pro - {Gym Name} - {Location}". Leave either blank to omit it.</p>
       <div style="display:flex;gap:20px;flex-wrap:wrap;">
         <label style="display:flex;flex-direction:column;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);">
           Gym name
@@ -223,7 +262,7 @@
       </div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="panel-rotation-settings">
       <p class="panel-title">Rotation Settings</p>
       <p class="panel-desc">How long each rotation slot lasts. All session durations round to the nearest multiple of this value. Changing it clears existing station allocations, since slot boundaries shift.</p>
       <label style="display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--slate);">
@@ -233,35 +272,35 @@
       </label>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="panel-coaching-levels">
       <p class="panel-title">Coaching Levels</p>
       <p class="panel-desc">Ranked lowest to highest. Used to set each squad's minimum required coach level, and to filter which coaches qualify for it. Reorder with the arrows — rank is determined by position in this list.</p>
       <div id="levelList"></div>
       <button class="add-btn" id="addLevelBtn">+ ADD LEVEL</button>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="panel-squads">
       <p class="panel-title">Squads</p>
       <p class="panel-desc">Everyone training in the program.</p>
       <div id="squadList"></div>
       <button class="add-btn" id="addSquadBtn">+ ADD SQUAD</button>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="panel-stations">
       <p class="panel-title">Gym Stations</p>
       <p class="panel-desc">Every apparatus, area, or piece of equipment squads rotate through. Set a capacity above 1 for stations big enough to host more than one squad at a time.</p>
       <div id="stationList"></div>
       <button class="add-btn" id="addStationBtn">+ ADD STATION</button>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="panel-coaches">
       <p class="panel-title">Coaches</p>
       <p class="panel-desc">Everyone available to run a session. Assign them to squads per session in Training Schedule.</p>
       <div id="coachList"></div>
       <button class="add-btn" id="addCoachBtn">+ ADD COACH</button>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="panel-conflicts">
       <p class="panel-title">Station Conflicts</p>
       <p class="panel-desc">Mark pairs of stations that can never be in use at the same time (shared mats, spotters, runway space, etc). Click a cell to toggle.</p>
       <div id="conflictMatrix"></div>
@@ -274,6 +313,11 @@
     <div class="panel">
       <p class="panel-title">Session Times &amp; Coaches</p>
       <p class="panel-desc">Toggle the days each squad trains. Each day can have more than one session — e.g. a Morning and an Afternoon session — each with its own time, duration (in <span id="rlLabel1">15</span>-minute increments), and coach. This repeats the same every week; only the station rotations (next tab) vary across the two-week cycle.</p>
+      <div class="schedule-view-toggle">
+        <span class="view-toggle-label">View by</span>
+        <button type="button" class="view-toggle-btn active" data-view="squad">Squad</button>
+        <button type="button" class="view-toggle-btn" data-view="day">Day</button>
+      </div>
       <div id="scheduleList"></div>
     </div>
   </div>
@@ -315,6 +359,10 @@
     <div class="panel">
       <p class="panel-title">Fortnightly Station Usage</p>
       <p class="panel-desc">Total <span id="rlLabel3">15</span>-minute blocks each squad has been allocated on each station, broken out by Week 1 and Week 2 so you can check the split is even across the cycle, plus a fortnight total. Stations with no usage for the selected squads are hidden.</p>
+      <div class="overview-filter-actions">
+        <button type="button" class="view-toggle-btn" id="overviewSelectAllBtn">Select All</button>
+        <button type="button" class="view-toggle-btn" id="overviewDeselectAllBtn">Deselect All</button>
+      </div>
       <div id="overviewSquadFilter" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;"></div>
       <div id="overviewTable"></div>
     </div>
@@ -331,10 +379,89 @@
   const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const PALETTE = ['#B5292E','#1F7A5C','#C9A227','#2A5CAA','#7A4FA3','#B5602E','#3E8E8E','#8C3F63','#4B7B2A','#A6437A'];
   const STORAGE_KEY = 'gym-scheduler-state-v4';
-  const APP_VERSION = 'v1.7a';
-  document.getElementById('versionTag').textContent = '· ' + APP_VERSION;
+  const APP_VERSION = 'v1.7b';
+  document.getElementById('versionTag').textContent = ' - ' + APP_VERSION.toUpperCase();
 
   function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+  // Color picker: swatch button that opens a popover with the preset PALETTE
+  // plus a native custom color input. Calls onChange(hex) when a color is chosen.
+  let closeOpenColorPopover = null;
+  function createColorPicker(initialColor, onChange){
+    const wrap = document.createElement('div');
+    wrap.className = 'color-picker';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'color-swatch-btn';
+    btn.style.background = initialColor;
+    btn.title = 'Change color';
+    wrap.appendChild(btn);
+
+    const pop = document.createElement('div');
+    pop.className = 'color-popover';
+
+    const label = document.createElement('p');
+    label.className = 'color-popover-label';
+    label.textContent = 'Preset colors';
+    pop.appendChild(label);
+
+    const grid = document.createElement('div');
+    grid.className = 'color-popover-grid';
+    PALETTE.forEach(c => {
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.style.background = c;
+      sw.title = c;
+      if(c.toLowerCase() === (initialColor||'').toLowerCase()) sw.classList.add('selected');
+      sw.addEventListener('click', () => {
+        btn.style.background = c;
+        grid.querySelectorAll('button').forEach(b => b.classList.remove('selected'));
+        sw.classList.add('selected');
+        closePopover();
+        onChange(c);
+      });
+      grid.appendChild(sw);
+    });
+    pop.appendChild(grid);
+
+    const customRow = document.createElement('div');
+    customRow.className = 'color-popover-custom';
+    const customLabel = document.createElement('label');
+    customLabel.textContent = 'Custom';
+    customLabel.setAttribute('for', '');
+    const customInput = document.createElement('input');
+    customInput.type = 'color';
+    customInput.value = initialColor;
+    customInput.addEventListener('input', () => { btn.style.background = customInput.value; });
+    customInput.addEventListener('change', () => {
+      grid.querySelectorAll('button').forEach(b => b.classList.remove('selected'));
+      onChange(customInput.value);
+      closePopover();
+    });
+    customRow.appendChild(customLabel);
+    customRow.appendChild(customInput);
+    pop.appendChild(customRow);
+
+    wrap.appendChild(pop);
+
+    function outsideClick(e){ if(!wrap.contains(e.target)) closePopover(); }
+    function closePopover(){
+      pop.classList.remove('open');
+      document.removeEventListener('click', outsideClick);
+      if(closeOpenColorPopover === closePopover) closeOpenColorPopover = null;
+    }
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if(pop.classList.contains('open')){ closePopover(); return; }
+      if(closeOpenColorPopover) closeOpenColorPopover();
+      pop.classList.add('open');
+      closeOpenColorPopover = closePopover;
+      setTimeout(() => document.addEventListener('click', outsideClick), 0);
+    });
+
+    return wrap;
+  }
 
   // Click-and-drag reordering. Prepends a drag handle to `row` and makes the
   // whole row a drop target, moving the item within `array` to the dropped position.
@@ -597,8 +724,29 @@
     activeTab = tab;
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+    syncTopBarHeight();
   }
   document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+  // keep sticky offsets accurate as the header/tab-bar wraps on resize
+  function syncTopBarHeight(){
+    const topBar = document.querySelector('.top-bar');
+    if(topBar) document.documentElement.style.setProperty('--topbar-height', topBar.offsetHeight + 'px');
+  }
+  window.addEventListener('resize', syncTopBarHeight);
+  window.addEventListener('load', syncTopBarHeight);
+
+  document.getElementById('setupJump').addEventListener('change', (e) => {
+    const targetId = e.target.value;
+    e.target.value = '';
+    if(!targetId) return;
+    const target = document.getElementById(targetId);
+    if(!target) return;
+    const quickjump = document.getElementById('setupQuickjump');
+    const offset = (document.querySelector('.top-bar')?.offsetHeight || 0) + (quickjump?.offsetHeight || 0) + 14;
+    const top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+    window.scrollTo({ top, behavior: 'smooth' });
+  });
 
   document.getElementById('rotationLengthInput').addEventListener('change', (e) => {
     const val = Math.max(5, Math.min(60, Math.round(Number(e.target.value)) || state.rotationLength));
@@ -618,8 +766,8 @@
     commit();
   });
   function updateMainTitle(){
-    let title = 'Rotation Scheduler';
-    if(state.gymName) title += ' ' + state.gymName;
+    let title = 'Gym Org Pro';
+    if(state.gymName) title += ' - ' + state.gymName;
     if(state.location) title += ' - ' + state.location;
     document.getElementById('mainTitle').textContent = title;
     document.getElementById('gymNameInput').value = state.gymName || '';
@@ -705,9 +853,7 @@
       if(!s.minLevelId) s.minLevelId = state.coachLevels[0].id;
       const row = document.createElement('div');
       row.className = 'item-row';
-      const swatch = document.createElement('input');
-      swatch.type = 'color'; swatch.className = 'swatch-btn'; swatch.value = s.color;
-      swatch.addEventListener('change', () => { s.color = swatch.value; commit(); });
+      const swatch = createColorPicker(s.color, (c) => { s.color = c; commit(); });
       row.appendChild(swatch);
       const nameInput = document.createElement('input');
       nameInput.className = 'name-input'; nameInput.value = s.name;
@@ -754,9 +900,7 @@
       if(!st.capacity) st.capacity = 1;
       const row = document.createElement('div');
       row.className = 'item-row';
-      const swatch = document.createElement('input');
-      swatch.type = 'color'; swatch.className = 'swatch-btn'; swatch.value = st.color;
-      swatch.addEventListener('change', () => { st.color = swatch.value; commit(); });
+      const swatch = createColorPicker(st.color, (c) => { st.color = c; commit(); });
       row.appendChild(swatch);
       const nameInput = document.createElement('input');
       nameInput.className = 'name-input'; nameInput.value = st.name;
@@ -1022,13 +1166,19 @@
     return block;
   }
 
-  function buildDayCard(s, weekday){
+  function buildDayCard(s, weekday, headerMode){
     const sessions = (state.schedule[s.id] && state.schedule[s.id][weekday]) || [];
     const card = document.createElement('div');
     card.className = 'day-card';
 
     const abbr = document.createElement('div');
-    abbr.className = 'abbr'; abbr.textContent = dayAbbr(weekday);
+    abbr.className = 'abbr';
+    if(headerMode === 'squad'){
+      abbr.style.display = 'flex'; abbr.style.alignItems = 'center'; abbr.style.justifyContent = 'center'; abbr.style.gap = '4px';
+      abbr.innerHTML = `<span class="swatch" style="width:10px;height:10px;background:${s.color}"></span>${s.name}`;
+    } else {
+      abbr.textContent = dayAbbr(weekday);
+    }
     card.appendChild(abbr);
 
     if(sessions.length === 0){
@@ -1058,28 +1208,60 @@
     return card;
   }
 
+  let scheduleViewMode = 'squad'; // 'squad' = squad blocks with day columns, 'day' = day blocks with squad columns
+  const DAY_NAMES_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+
   function renderScheduleList(){
     const el = document.getElementById('scheduleList');
     el.innerHTML = '';
     if(state.squads.length === 0){ el.innerHTML = '<p class="empty-note">Add a squad in Setup first.</p>'; return; }
-    state.squads.forEach(s => {
-      if(!state.schedule[s.id]) state.schedule[s.id] = {};
-      const block = document.createElement('div');
-      block.className = 'squad-block';
+    state.squads.forEach(s => { if(!state.schedule[s.id]) state.schedule[s.id] = {}; });
 
-      const head = document.createElement('div');
-      head.className = 'squad-block-head';
-      head.innerHTML = `<span class="swatch" style="background:${s.color}"></span>${s.name} <span style="font-weight:400;font-size:12px;color:var(--slate);font-family:'JetBrains Mono',monospace;">(${levelName(s.minLevelId)})</span>`;
-      block.appendChild(head);
+    if(scheduleViewMode === 'day'){
+      for(let weekday = 0; weekday < 7; weekday++){
+        const block = document.createElement('div');
+        block.className = 'squad-block';
 
-      const grid = document.createElement('div');
-      grid.className = 'day-grid';
-      for(let i = 0; i < 7; i++) grid.appendChild(buildDayCard(s, i));
-      block.appendChild(grid);
+        const head = document.createElement('div');
+        head.className = 'squad-block-head';
+        head.textContent = DAY_NAMES_FULL[weekday];
+        block.appendChild(head);
 
-      el.appendChild(block);
-    });
+        const grid = document.createElement('div');
+        grid.className = 'day-grid';
+        grid.style.setProperty('--dg-cols', state.squads.length);
+        state.squads.forEach(s => grid.appendChild(buildDayCard(s, weekday, 'squad')));
+        block.appendChild(grid);
+
+        el.appendChild(block);
+      }
+    } else {
+      state.squads.forEach(s => {
+        const block = document.createElement('div');
+        block.className = 'squad-block';
+
+        const head = document.createElement('div');
+        head.className = 'squad-block-head';
+        head.innerHTML = `<span class="swatch" style="background:${s.color}"></span>${s.name} <span style="font-weight:400;font-size:12px;color:var(--slate);font-family:'JetBrains Mono',monospace;">(${levelName(s.minLevelId)})</span>`;
+        block.appendChild(head);
+
+        const grid = document.createElement('div');
+        grid.className = 'day-grid';
+        for(let i = 0; i < 7; i++) grid.appendChild(buildDayCard(s, i, 'day'));
+        block.appendChild(grid);
+
+        el.appendChild(block);
+      });
+    }
   }
+  document.querySelectorAll('.schedule-view-toggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(scheduleViewMode === btn.dataset.view) return;
+      scheduleViewMode = btn.dataset.view;
+      document.querySelectorAll('.schedule-view-toggle button').forEach(b => b.classList.toggle('active', b === btn));
+      renderScheduleList();
+    });
+  });
 
   // ===================== shared session helpers =====================
   // Session times/coaches are a weekly template (state.schedule is keyed 0-6, each
@@ -1629,6 +1811,14 @@
       el.appendChild(label);
     });
   }
+  document.getElementById('overviewSelectAllBtn').addEventListener('click', () => {
+    overviewHiddenSquads.clear();
+    renderOverview();
+  });
+  document.getElementById('overviewDeselectAllBtn').addEventListener('click', () => {
+    state.squads.forEach(s => overviewHiddenSquads.add(s.id));
+    renderOverview();
+  });
 
   function renderOverview(){
     renderOverviewFilter();
@@ -1683,6 +1873,7 @@
 
   switchTab('setup');
   loadState();
+  setTimeout(syncTopBarHeight, 150);
 })();
 </script>
 </body>
