@@ -248,7 +248,8 @@
       <div class="print-menu-wrap">
         <button class="header-btn" id="printMenuBtn">PRINT ▾</button>
         <div class="print-menu" id="printMenu">
-          <button type="button" id="printRotationsBtn">Rotation Board — 14-Day PDF</button>
+          <button type="button" id="printRotationsByDayBtn">Rotations — By Day (all squads)</button>
+          <button type="button" id="printRotationsBySquadBtn">Rotations — By Squad (all days)</button>
           <button type="button" id="printStaffingBtn">Weekly Staffing Roster</button>
           <button type="button" id="printIndividualBtn">Individual Coach Rosters</button>
         </div>
@@ -1744,7 +1745,7 @@
   // One table per week for the squad view: rows are the squad's own time slots
   // (shared down the left, not repeated per day), columns are the days it trains
   // that week, lined up so the same row is always the same clock time.
-  function buildSquadWeekTable(weekStart, squad){
+  function buildSquadWeekTable(weekStart, squad, interactive){
     const dayIndexes = [];
     for(let dayIndex = weekStart; dayIndex < weekStart + 7; dayIndex++){
       const weekday = weekdayOf(dayIndex);
@@ -1767,7 +1768,7 @@
     if(min === null) return null;
 
     const table = document.createElement('table');
-    table.className = 'rota';
+    table.className = interactive ? 'rota' : 'print-table';
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
     trh.appendChild(document.createElement('th'));
@@ -1801,7 +1802,7 @@
       tr.appendChild(labelTd);
 
       dayIndexes.forEach(dayIndex => {
-        tr.appendChild(buildStationCell(dayIndex, tick, squad, true, renderRotaBySquad));
+        tr.appendChild(buildStationCell(dayIndex, tick, squad, interactive, renderRotaBySquad));
       });
       tbody.appendChild(tr);
     }
@@ -1826,7 +1827,7 @@
 
     let anyWeek = false;
     [0, 7].forEach(weekStart => {
-      const table = buildSquadWeekTable(weekStart, squad);
+      const table = buildSquadWeekTable(weekStart, squad, true);
       if(!table) return;
       anyWeek = true;
 
@@ -1867,7 +1868,7 @@
     window.print();
   }
 
-  document.getElementById('printRotationsBtn').addEventListener('click', () => {
+  document.getElementById('printRotationsByDayBtn').addEventListener('click', () => {
     runPrint((printArea) => {
       let anyDay = false;
       for(let dayIndex = 0; dayIndex < 14; dayIndex++){
@@ -1888,6 +1889,37 @@
       }
       if(!anyDay) showFlash('Nothing to print yet — set up squads, stations, and session times first.');
       return anyDay;
+    });
+  });
+
+  document.getElementById('printRotationsBySquadBtn').addEventListener('click', () => {
+    runPrint((printArea) => {
+      if(state.squads.length === 0){ showFlash('Add a squad in Setup first.'); return false; }
+      let anySquad = false;
+      state.squads.forEach(squad => {
+        const weeks = [0, 7]
+          .map((weekStart, i) => ({ weekNum: i + 1, table: buildSquadWeekTable(weekStart, squad, false) }))
+          .filter(w => w.table);
+        if(weeks.length === 0) return;
+        anySquad = true;
+
+        const page = document.createElement('div');
+        page.className = 'print-day';
+        const h2 = document.createElement('h2');
+        h2.textContent = squad.name;
+        page.appendChild(h2);
+
+        weeks.forEach(({weekNum, table}) => {
+          const sub = document.createElement('div');
+          sub.className = 'print-sub';
+          sub.textContent = 'Week ' + weekNum;
+          page.appendChild(sub);
+          page.appendChild(table);
+        });
+        printArea.appendChild(page);
+      });
+      if(!anySquad) showFlash('Nothing to print yet — set squad session times in Training Schedule.');
+      return anySquad;
     });
   });
 
