@@ -1,0 +1,1603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gym Rotation Scheduler</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12213D; --ink-2:#1C2E52;
+    --chalk:#F6F5F1; --panel:#FFFFFF;
+    --mat-red:#B5292E; --mat-red-soft:#F4DEDD;
+    --spring:#1F7A5C; --spring-soft:#DCEEE6;
+    --gold:#C9A227; --gold-soft:#F5ECD2;
+    --slate:#5B6478; --line:#E2DFD5; --idle:#EFEDE6;
+  }
+  *{box-sizing:border-box;}
+  html{overflow-x:hidden;}
+  body{margin:0;background:var(--chalk);color:var(--ink);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+  .wrap{max-width:1280px;margin:0 auto;padding:0 20px 64px;}
+
+  .board-header{background:linear-gradient(135deg,var(--ink) 0%,var(--ink-2) 100%);color:#fff;padding:34px 20px 28px;}
+  .board-header-inner{max-width:1280px;margin:0 auto;display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:14px;}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin:0 0 6px;}
+  h1{font-family:'Oswald',sans-serif;font-weight:600;font-size:clamp(28px,4vw,42px);letter-spacing:.01em;margin:0;text-transform:uppercase;}
+  .header-sub{font-size:14px;color:#C7CEE0;margin-top:6px;max-width:560px;line-height:1.5;}
+  .status-chip{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:100px;padding:8px 16px;display:flex;align-items:center;gap:8px;white-space:nowrap;}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--spring);}
+  .header-btn{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.03em;background:var(--gold);color:var(--ink);border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-weight:700;}
+  .header-btn:hover{opacity:.9;}
+  .header-btn.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);}
+  .header-btn.ghost:hover{background:rgba(255,255,255,.08);}
+
+  .tab-bar{background:var(--ink-2);border-bottom:3px solid var(--gold);position:sticky;top:0;z-index:10;}
+  .tab-bar-inner{max-width:1280px;margin:0 auto;padding:0 20px;display:flex;gap:4px;overflow-x:auto;}
+  .tab-btn{font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;background:none;border:none;color:#AAB3CB;padding:14px 18px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-3px;white-space:nowrap;}
+  .tab-btn:hover{color:#fff;}
+  .tab-btn.active{color:#fff;border-bottom-color:var(--gold);}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px 24px;margin:22px 0;}
+  .panel-title{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.04em;font-size:15px;font-weight:600;margin:0 0 4px;}
+  .panel-desc{font-size:13px;color:var(--slate);margin:0 0 18px;line-height:1.5;}
+
+  /* ---- squads / stations / coaches lists ---- */
+  .item-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;transition:border-top-color .1s ease;}
+  .item-row.dragging{opacity:.4;}
+  .item-row.drag-over{border-top:2px solid var(--gold);}
+  .item-row.drag-over-after{border-top:none;border-bottom:2px solid var(--gold);}
+  .drag-handle{cursor:grab;color:var(--slate);font-size:16px;line-height:1;user-select:none;flex-shrink:0;padding:0 2px;}
+  .drag-handle:active{cursor:grabbing;}
+  .item-row:last-child{border-bottom:none;}
+  .swatch{width:14px;height:14px;border-radius:3px;flex-shrink:0;display:inline-block;}
+  .swatch-btn{width:20px;height:20px;border-radius:5px;border:1px solid var(--line);cursor:pointer;flex-shrink:0;}
+  .name-input{font-family:'Inter',sans-serif;font-weight:600;font-size:14px;border:1px solid transparent;background:transparent;padding:6px 8px;border-radius:6px;min-width:160px;color:var(--ink);flex:1;}
+  .name-input:hover,.name-input:focus{border-color:var(--line);background:var(--chalk);outline:none;}
+  .remove-btn{background:none;border:none;color:var(--slate);cursor:pointer;font-size:13px;padding:6px 8px;border-radius:6px;}
+  .remove-btn:hover{background:var(--mat-red-soft);color:var(--mat-red);}
+  .add-btn{margin-top:14px;font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--ink);color:#fff;border:none;border-radius:6px;padding:9px 16px;cursor:pointer;letter-spacing:.03em;}
+  .add-btn:hover{background:var(--ink-2);}
+  .empty-note{font-size:13px;color:var(--slate);}
+
+  /* ---- conflict matrix ---- */
+  table.matrix{border-collapse:collapse;}
+  table.matrix th{font-family:'Oswald',sans-serif;font-size:11px;text-transform:uppercase;padding:6px 8px;color:var(--slate);max-width:90px;}
+  table.matrix th.rowhead{text-align:right;white-space:nowrap;max-width:140px;}
+  table.matrix td{padding:2px;}
+  .mx-cell{width:34px;height:34px;border-radius:6px;border:1px solid var(--line);cursor:pointer;background:var(--idle);}
+  .mx-cell.conflict{background:var(--mat-red);border-color:var(--mat-red);}
+  .mx-cell.disabled{background:transparent;border:none;cursor:default;}
+  .conflict-list{margin-top:16px;font-size:12px;color:var(--slate);}
+  .conflict-list span{display:inline-block;background:var(--mat-red-soft);color:var(--mat-red);border-radius:100px;padding:4px 10px;margin:3px 4px 3px 0;font-family:'JetBrains Mono',monospace;}
+
+  /* ---- training schedule ---- */
+  .squad-block{border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:14px;}
+  .squad-block-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-weight:700;font-size:14px;}
+  .day-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
+  .day-card{border:1px solid var(--line);border-radius:8px;padding:8px 6px;background:var(--chalk);}
+  .day-card .abbr{font-family:'Oswald',sans-serif;font-size:12px;font-weight:600;text-transform:uppercase;text-align:center;margin-bottom:4px;}
+  .day-card .off-hint{font-size:10px;color:var(--slate);font-family:'JetBrains Mono',monospace;text-align:center;cursor:pointer;padding:6px 0;}
+  .session-block{background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px;margin-bottom:6px;}
+  .session-block:last-of-type{margin-bottom:4px;}
+  .session-label-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;}
+  .session-label-row input[type="text"]{font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;border:none;background:transparent;color:var(--slate);width:60%;padding:0;}
+  .session-x{background:none;border:none;color:var(--mat-red);cursor:pointer;font-size:12px;line-height:1;padding:0 2px;}
+  .day-card input[type="time"], .day-card input[type="number"], .day-card select{
+    width:100%;font-family:'JetBrains Mono',monospace;font-size:10px;border:1px solid var(--line);border-radius:4px;padding:3px;margin-top:3px;background:var(--chalk);
+  }
+  .dur-row{display:flex;align-items:center;gap:3px;margin-top:3px;}
+  .dur-row span{font-size:9px;color:var(--slate);}
+  .add-session-btn{width:100%;font-size:9px;font-family:'JetBrains Mono',monospace;background:none;border:1px dashed var(--line);border-radius:5px;padding:5px;color:var(--slate);cursor:pointer;margin-top:2px;}
+  .add-session-btn:hover{border-color:var(--ink);color:var(--ink);}
+
+  /* ---- day picker (rotations / staffing) ---- */
+  .day-cards{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
+  .pick-card{border:1px solid var(--line);border-radius:8px;padding:10px 6px;background:#fff;cursor:pointer;text-align:center;}
+  .pick-card:hover{border-color:var(--ink);}
+  .pick-card.selected{background:var(--ink);border-color:var(--ink);}
+  .pick-card.selected .abbr, .pick-card.selected .sub{color:#fff;}
+  .pick-card .abbr{font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;text-transform:uppercase;}
+  .pick-card .sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--slate);margin-top:2px;}
+  .pick-dots{display:flex;gap:3px;justify-content:center;margin-top:6px;flex-wrap:wrap;}
+  .pick-dots span{width:5px;height:5px;border-radius:50%;}
+  .week-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);letter-spacing:.1em;text-transform:uppercase;margin:14px 0 8px;}
+  .week-label:first-of-type{margin-top:0;}
+
+  /* ---- rotation grid (squads across the top) ---- */
+  .rota-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  table.rota{width:100%;border-collapse:collapse;}
+  table.rota th{font-family:'Oswald',sans-serif;font-size:12px;text-transform:uppercase;letter-spacing:.02em;text-align:center;padding:8px 6px;border-bottom:2px solid var(--ink);}
+  table.rota th .coach-sub{display:block;font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:none;letter-spacing:0;color:var(--slate);margin-top:2px;font-weight:500;}
+  table.rota td{border-bottom:1px solid var(--line);padding:5px;text-align:center;vertical-align:middle;}
+  .tick-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);text-align:left;padding-left:4px;white-space:nowrap;}
+  .rota-select{min-width:118px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;padding:7px 6px;border-radius:6px;cursor:pointer;border:1px solid var(--line);background:var(--idle);color:var(--slate);text-align:center;text-align-last:center;}
+  .rota-select option{color:#000;background:#fff;font-weight:500;}
+  .rota-dash{color:var(--slate);font-size:13px;}
+  .hint{font-size:12px;color:var(--slate);margin-top:10px;}
+  .flash{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--mat-red);color:#fff;font-size:13px;font-weight:600;padding:12px 20px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:100;opacity:0;pointer-events:none;transition:opacity .2s ease;max-width:80vw;text-align:center;}
+  .flash.show{opacity:1;}
+
+  /* ---- overview ---- */
+  table.overview{width:100%;border-collapse:collapse;}
+  table.overview th{font-family:'Oswald',sans-serif;font-size:11px;text-transform:uppercase;padding:8px 6px;text-align:center;border-bottom:2px solid var(--ink);}
+  table.overview th.class-col{text-align:left;}
+  table.overview td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:12px;}
+  .class-cell{display:flex;align-items:center;gap:8px;text-align:left;font-family:'Inter',sans-serif;font-weight:600;font-size:13px;}
+  .total-col{font-weight:700;color:var(--ink);}
+
+  /* ---- staffing roster ---- */
+  table.roster{width:100%;border-collapse:collapse;margin-bottom:6px;}
+  table.roster th{font-family:'Oswald',sans-serif;font-size:11px;text-transform:uppercase;padding:8px 6px;text-align:left;border-bottom:2px solid var(--ink);}
+  table.roster td{padding:8px 6px;border-bottom:1px solid var(--line);font-size:13px;}
+  table.roster td.time-cell{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--slate);white-space:nowrap;}
+  table.roster td.coach-cell{font-weight:700;}
+  table.roster td.coach-cell.unassigned{color:var(--mat-red);font-weight:600;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;}
+  .roster-day-title{font-family:'Oswald',sans-serif;text-transform:uppercase;font-size:13px;font-weight:600;margin:22px 0 8px;}
+  .roster-day-title:first-child{margin-top:0;}
+  table.coach-load{width:100%;border-collapse:collapse;}
+  table.coach-load th{font-family:'Oswald',sans-serif;font-size:11px;text-transform:uppercase;padding:8px 6px;text-align:left;border-bottom:2px solid var(--ink);}
+  table.coach-load td{padding:8px 6px;border-bottom:1px solid var(--line);font-size:13px;font-family:'JetBrains Mono',monospace;}
+
+  footer{margin-top:8px;text-align:center;font-size:11px;color:var(--slate);font-family:'JetBrains Mono',monospace;}
+
+  /* ---- print-only 14-day PDF view ---- */
+  #printArea{display:none;}
+  .print-day{padding:20px;}
+  .print-day h2{font-family:'Oswald',sans-serif;text-transform:uppercase;margin:0 0 4px;font-size:20px;}
+  .print-day .print-sub{font-size:12px;color:#555;margin-bottom:14px;font-family:'JetBrains Mono',monospace;}
+  table.print-table{width:100%;border-collapse:collapse;font-size:11px;}
+  table.print-table th{border:1px solid #999;padding:5px 4px;background:#eee;font-family:'Oswald',sans-serif;text-transform:uppercase;font-size:10px;}
+  table.print-table th .coach-sub{display:block;font-weight:400;text-transform:none;font-size:9px;color:#555;margin-top:2px;}
+  table.print-table td{border:1px solid #ccc;padding:5px 4px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
+  table.print-table td.tick-label{text-align:left;font-family:'JetBrains Mono',monospace;white-space:nowrap;}
+
+  @media print{
+    html, body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:exact; }
+    .board-header, .tab-bar, .wrap > .tab-panel, footer, .flash{ display:none !important; }
+    #printArea{ display:block !important; }
+    .print-day{ page-break-after:always; }
+    .print-day:last-child{ page-break-after:auto; }
+    body{ background:#fff; }
+  }
+
+  @media (max-width:640px){
+    .day-grid{grid-template-columns:repeat(1,1fr);}
+    .day-cards{grid-template-columns:repeat(4,1fr);}
+    .rota-select{min-width:70px;font-size:10px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="board-header">
+  <div class="board-header-inner">
+    <div>
+      <p class="eyebrow">Gym Program · Scheduling <span id="versionTag" style="color:#8A93AC;">· v1.0</span></p>
+      <h1 id="mainTitle">Rotation Scheduler</h1>
+      <p class="header-sub">Define squads, stations, and coaches, set session times (including separate morning/afternoon sessions), then allocate a station per squad per slot — conflicts are blocked automatically.</p>
+    </div>
+    <div class="status-chip" id="statusChip"><span class="dot"></span><span id="statusChipText">Loading…</span></div>
+  </div>
+  <div class="board-header-inner" style="padding-top:0;">
+    <div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="header-btn" id="printBtn">PRINT 14-DAY PDF</button>
+      <button class="header-btn" id="exportBtn">EXPORT BACKUP</button>
+      <button class="header-btn ghost" id="importBtn">IMPORT BACKUP</button>
+      <input type="file" id="importFile" accept="application/json" style="display:none;">
+    </div>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <div class="tab-bar-inner">
+    <button class="tab-btn" data-tab="setup">01 · Setup</button>
+    <button class="tab-btn" data-tab="schedule">02 · Training Schedule</button>
+    <button class="tab-btn" data-tab="rotations">03 · Rotations</button>
+    <button class="tab-btn" data-tab="staffing">04 · Staffing</button>
+    <button class="tab-btn" data-tab="overview">05 · Overview</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- ===================== SETUP ===================== -->
+  <div class="tab-panel" id="tab-setup">
+    <div class="panel">
+      <p class="panel-title">Program Details</p>
+      <p class="panel-desc">Shown in the header as "Rotation Scheduler {Gym Name} - {Location}". Leave either blank to omit it.</p>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;">
+        <label style="display:flex;flex-direction:column;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);">
+          Gym name
+          <input type="text" id="gymNameInput" placeholder="e.g. College Gymnastics" style="padding:8px;border:1px solid var(--line);border-radius:6px;font-family:'Inter',sans-serif;font-size:13px;min-width:220px;">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);">
+          Location
+          <input type="text" id="gymLocationInput" placeholder="e.g. Location X" style="padding:8px;border:1px solid var(--line);border-radius:6px;font-family:'Inter',sans-serif;font-size:13px;min-width:220px;">
+        </label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">Rotation Settings</p>
+      <p class="panel-desc">How long each rotation slot lasts. All session durations round to the nearest multiple of this value. Changing it clears existing station allocations, since slot boundaries shift.</p>
+      <label style="display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--slate);">
+        Rotation length
+        <input type="number" id="rotationLengthInput" min="5" max="60" step="1" style="width:64px;padding:7px;border:1px solid var(--line);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:13px;">
+        minutes (5–60)
+      </label>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">Coaching Levels</p>
+      <p class="panel-desc">Ranked lowest to highest. Used to set each squad's minimum required coach level, and to filter which coaches qualify for it. Reorder with the arrows — rank is determined by position in this list.</p>
+      <div id="levelList"></div>
+      <button class="add-btn" id="addLevelBtn">+ ADD LEVEL</button>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">Squads</p>
+      <p class="panel-desc">Everyone training in the program.</p>
+      <div id="squadList"></div>
+      <button class="add-btn" id="addSquadBtn">+ ADD SQUAD</button>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">Gym Stations</p>
+      <p class="panel-desc">Every apparatus, area, or piece of equipment squads rotate through. Set a capacity above 1 for stations big enough to host more than one squad at a time.</p>
+      <div id="stationList"></div>
+      <button class="add-btn" id="addStationBtn">+ ADD STATION</button>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">Coaches</p>
+      <p class="panel-desc">Everyone available to run a session. Assign them to squads per session in Training Schedule.</p>
+      <div id="coachList"></div>
+      <button class="add-btn" id="addCoachBtn">+ ADD COACH</button>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">Station Conflicts</p>
+      <p class="panel-desc">Mark pairs of stations that can never be in use at the same time (shared mats, spotters, runway space, etc). Click a cell to toggle.</p>
+      <div id="conflictMatrix"></div>
+      <div class="conflict-list" id="conflictSummary"></div>
+    </div>
+  </div>
+
+  <!-- ===================== TRAINING SCHEDULE ===================== -->
+  <div class="tab-panel" id="tab-schedule">
+    <div class="panel">
+      <p class="panel-title">Session Times &amp; Coaches</p>
+      <p class="panel-desc">Toggle the days each squad trains. Each day can have more than one session — e.g. a Morning and an Afternoon session — each with its own time, duration (in <span id="rlLabel1">15</span>-minute increments), and coach. This repeats the same every week; only the station rotations (next tab) vary across the two-week cycle.</p>
+      <div id="scheduleList"></div>
+    </div>
+  </div>
+
+  <!-- ===================== ROTATIONS ===================== -->
+  <div class="tab-panel" id="tab-rotations">
+    <div class="panel">
+      <p class="panel-title">Select a Day</p>
+      <div id="dayPickerRota"></div>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Rotation Board — <span id="selectedDayLabelRota"></span></p>
+      <p class="panel-desc">Each column is a squad; each row is a <span id="rlLabel2">15</span>-minute slot. Pick the activity/station each squad is on — a station already at capacity, or one that conflicts with a station in use, will be blocked.</p>
+      <div id="rotaBoard"></div>
+      <p class="hint">Only time slots where at least one squad is in session are shown. Gaps between a squad's morning and afternoon sessions show a dash.</p>
+    </div>
+  </div>
+
+  <!-- ===================== STAFFING ===================== -->
+  <div class="tab-panel" id="tab-staffing">
+    <div class="panel">
+      <p class="panel-title">Weekly Staffing Roster</p>
+      <p class="panel-desc">Every session this week, grouped by day, with its assigned coach. Sessions with no coach assigned are flagged.</p>
+      <div id="rosterTable"></div>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Individual Coach Rosters</p>
+      <p class="panel-desc">Each coach's own week at a glance — which squads, and when.</p>
+      <div id="coachRosterTable"></div>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Sessions per Coach</p>
+      <div id="coachLoadTable"></div>
+    </div>
+  </div>
+
+  <!-- ===================== OVERVIEW ===================== -->
+  <div class="tab-panel" id="tab-overview">
+    <div class="panel">
+      <p class="panel-title">Fortnightly Station Usage</p>
+      <p class="panel-desc">Total <span id="rlLabel3">15</span>-minute blocks each squad has been allocated on each station, broken out by Week 1 and Week 2 so you can check the split is even across the cycle, plus a fortnight total.</p>
+      <div id="overviewTable"></div>
+    </div>
+  </div>
+
+  <footer>GYM ROTATION SCHEDULER — DATA SAVED AUTOMATICALLY TO THIS BROWSER PROFILE</footer>
+</div>
+
+<div id="printArea"></div>
+<div class="flash" id="flash"></div>
+
+<script>
+(function(){
+  const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const PALETTE = ['#B5292E','#1F7A5C','#C9A227','#2A5CAA','#7A4FA3','#B5602E','#3E8E8E','#8C3F63','#4B7B2A','#A6437A'];
+  const STORAGE_KEY = 'gym-scheduler-state-v4';
+  const APP_VERSION = 'v1.4';
+  document.getElementById('versionTag').textContent = '· ' + APP_VERSION;
+
+  function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+  // Click-and-drag reordering. Prepends a drag handle to `row` and makes the
+  // whole row a drop target, moving the item within `array` to the dropped position.
+  let dragSource = null;
+  function makeRowDraggable(row, array, idx){
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.textContent = '⠿';
+    handle.title = 'Drag to reorder';
+    handle.draggable = true;
+    handle.addEventListener('dragstart', (e) => {
+      dragSource = {array, index: idx};
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try{ e.dataTransfer.setData('text/plain', String(idx)); }catch(err){}
+    });
+    handle.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      dragSource = null;
+    });
+    row.insertBefore(handle, row.firstChild);
+
+    row.addEventListener('dragover', (e) => {
+      if(!dragSource || dragSource.array !== array) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const rect = row.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      row.dataset.dropPos = before ? 'before' : 'after';
+      row.classList.add('drag-over');
+      row.classList.toggle('drag-over-after', !before);
+    });
+    row.addEventListener('dragleave', () => { row.classList.remove('drag-over','drag-over-after'); });
+    row.addEventListener('drop', (e) => {
+      const dropPos = row.dataset.dropPos || 'before';
+      row.classList.remove('drag-over','drag-over-after');
+      if(!dragSource || dragSource.array !== array) return;
+      e.preventDefault();
+      const from = dragSource.index;
+      dragSource = null;
+      const targetIndex = dropPos === 'after' ? idx + 1 : idx;
+      if(targetIndex === from || targetIndex === from + 1) return;
+      const [item] = array.splice(from, 1);
+      const insertAt = targetIndex > from ? targetIndex - 1 : targetIndex;
+      array.splice(insertAt, 0, item);
+      commit();
+    });
+  }
+  function toMinutes(hhmm){ const [h,m]=(hhmm||'16:00').split(':').map(Number); return h*60+(m||0); }
+  function fmt12(mins){
+    mins = ((mins%1440)+1440)%1440;
+    let h=Math.floor(mins/60), m=mins%60;
+    const ampm = h>=12?'PM':'AM'; let h12=h%12; if(h12===0)h12=12;
+    return h12 + (m? ':'+String(m).padStart(2,'0') : ':00') + ' ' + ampm;
+  }
+  function pairKey(a,b){ return [a,b].sort().join('|'); }
+  function levelRank(levelId){
+    const i = state.coachLevels.findIndex(l => l.id === levelId);
+    return i === -1 ? 0 : i;
+  }
+  function isQualified(coach, squad){
+    return levelRank(coach.levelId) >= levelRank(squad.minLevelId);
+  }
+  function levelName(levelId){
+    const l = state.coachLevels.find(x => x.id === levelId);
+    return l ? l.name : '—';
+  }
+  function weekdayOf(dayIndex){ return dayIndex % 7; }
+  function weekOf(dayIndex){ return Math.floor(dayIndex / 7); }
+  function dayAbbr(dayIndex){ return DAY_NAMES[weekdayOf(dayIndex)]; }
+  function dayLabel(dayIndex){ return 'Week ' + (weekOf(dayIndex)+1) + ' · ' + dayAbbr(dayIndex); }
+
+  const DEFAULT_STATE = {
+    coachLevels: [
+      {id:'lvl1', name:'Fundamentals (unqualified)'},
+      {id:'lvl2', name:'Fundamentals'},
+      {id:'lvl3', name:'Intermediate'},
+      {id:'lvl4', name:'Advanced'},
+      {id:'lvl5', name:'Advanced Silver'},
+      {id:'lvl6', name:'High Performance'},
+    ],
+    squads: [
+      {id:'sq1', name:'Development', color: PALETTE[0], minLevelId:'lvl2'},
+      {id:'sq2', name:'Junior Squad', color: PALETTE[1], minLevelId:'lvl2'},
+      {id:'sq3', name:'Xcel / Optional', color: PALETTE[2], minLevelId:'lvl3'},
+      {id:'sq4', name:'Senior Squad', color: PALETTE[3], minLevelId:'lvl4'},
+      {id:'sq5', name:'Elite', color: PALETTE[4], minLevelId:'lvl6'},
+    ],
+    stations: [
+      {id:'st1', name:'Floor Exercise', color: PALETTE[0], capacity:2},
+      {id:'st2', name:'Pommel Horse', color: PALETTE[1], capacity:1},
+      {id:'st3', name:'Still Rings', color: PALETTE[2], capacity:1},
+      {id:'st4', name:'Vault', color: PALETTE[3], capacity:1},
+      {id:'st5', name:'Parallel Bars', color: PALETTE[4], capacity:1},
+      {id:'st6', name:'High Bar', color: PALETTE[5], capacity:1},
+    ],
+    coaches: [
+      {id:'co1', name:'Coach 1', levelId:'lvl4', maxConcurrent:1},
+      {id:'co2', name:'Coach 2', levelId:'lvl6', maxConcurrent:1},
+      {id:'co3', name:'Coach 3', levelId:'lvl3', maxConcurrent:2},
+    ],
+    conflicts: ['st2|st5'], // demo: Pommel Horse & Parallel Bars share spotting mats
+    // Session times/coaches recur the same every week (0=Mon..6=Sun). Each day maps
+    // to an ARRAY of sessions, so a squad can have separate Morning/Afternoon blocks.
+    schedule: {
+      sq1: {0:[{id:'s1',label:'Session',startTime:'16:00',duration:60,coachId:'co1',assistantCoachId:''}], 2:[{id:'s2',label:'Session',startTime:'16:00',duration:60,coachId:'co2',assistantCoachId:''}], 4:[{id:'s3',label:'Session',startTime:'16:00',duration:60,coachId:'co1',assistantCoachId:''}]},
+      sq2: {0:[{id:'s4',label:'Session',startTime:'16:00',duration:75,coachId:'co2',assistantCoachId:''}], 1:[{id:'s5',label:'Session',startTime:'16:00',duration:75,coachId:'',assistantCoachId:''}], 3:[{id:'s6',label:'Session',startTime:'16:00',duration:75,coachId:'co2',assistantCoachId:''}], 4:[{id:'s7',label:'Session',startTime:'16:00',duration:75,coachId:'co3',assistantCoachId:''}]},
+      sq3: {1:[{id:'s8',label:'Session',startTime:'17:30',duration:90,coachId:'co3',assistantCoachId:''}], 3:[{id:'s9',label:'Session',startTime:'17:30',duration:90,coachId:'co3',assistantCoachId:''}], 5:[{id:'s10',label:'Session',startTime:'09:00',duration:90,coachId:'',assistantCoachId:''}]},
+      sq4: {0:[{id:'s11',label:'Session',startTime:'15:30',duration:120,coachId:'co1',assistantCoachId:''}], 1:[{id:'s12',label:'Session',startTime:'15:30',duration:120,coachId:'co1',assistantCoachId:''}], 2:[{id:'s13',label:'Session',startTime:'15:30',duration:120,coachId:'co1',assistantCoachId:''}], 3:[{id:'s14',label:'Session',startTime:'15:30',duration:120,coachId:'co1',assistantCoachId:''}], 4:[{id:'s15',label:'Session',startTime:'15:30',duration:120,coachId:'co1',assistantCoachId:''}]},
+      sq5: {0:[{id:'s16',label:'Session',startTime:'15:00',duration:150,coachId:'co2',assistantCoachId:''}], 1:[{id:'s17',label:'Session',startTime:'15:00',duration:150,coachId:'co2',assistantCoachId:''}], 2:[{id:'s18',label:'Session',startTime:'15:00',duration:150,coachId:'co2',assistantCoachId:'co3'}], 3:[{id:'s19',label:'Session',startTime:'15:00',duration:150,coachId:'co2',assistantCoachId:''}], 4:[{id:'s20',label:'Session',startTime:'15:00',duration:150,coachId:'co2',assistantCoachId:'co3'}],
+           5:[{id:'s21',label:'Morning',startTime:'09:00',duration:60,coachId:'co2',assistantCoachId:''},{id:'s22',label:'Afternoon',startTime:'13:00',duration:90,coachId:'co2',assistantCoachId:''}]},
+    },
+    allocations: {}, // {dayIndex(0-13): {tick: {squadId: stationId}}} - rotations still vary across the 14-day cycle
+    selectedDay: 0, // 0-13 across the fortnight (0-6 = Week 1, 7-13 = Week 2)
+    rotationLength: 15, // minutes per rotation slot, 5-60
+    gymName: '',
+    location: '',
+  };
+
+  let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+  let activeTab = 'setup';
+  let flashTimer = null;
+
+  // ---------------- persistence ----------------
+  // window.storage only exists when this file is viewed inside Claude.ai.
+  // When the file is downloaded and opened directly in a browser, we fall
+  // back to this browser's own localStorage so changes still persist.
+  function hasHostStorage(){
+    return typeof window.storage !== 'undefined' && window.storage && typeof window.storage.get === 'function';
+  }
+  function migrateState(){
+    if(!state.rotationLength) state.rotationLength = 15;
+    if(!Array.isArray(state.coachLevels) || state.coachLevels.length === 0){
+      state.coachLevels = JSON.parse(JSON.stringify(DEFAULT_STATE.coachLevels));
+    }
+    const lowestId = state.coachLevels[0].id;
+    const highestId = state.coachLevels[state.coachLevels.length-1].id;
+    const clampLevelIndex = n => Math.max(0, Math.min(state.coachLevels.length-1, Math.round(n)-1));
+    const validLevelIds = new Set(state.coachLevels.map(l => l.id));
+
+    // legacy numeric coach.level -> levelId, and re-link any dangling/missing levelId to the lowest level
+    state.coaches.forEach(c => {
+      if(!c.levelId || !validLevelIds.has(c.levelId)){
+        c.levelId = (typeof c.level === 'number') ? state.coachLevels[clampLevelIndex(c.level)].id : lowestId;
+      }
+      if(!c.maxConcurrent) c.maxConcurrent = 1;
+      delete c.level;
+    });
+    // legacy numeric squad.minCoachLevel -> minLevelId, and re-link any dangling/missing minLevelId to the lowest level
+    state.squads.forEach(s => {
+      if(!s.minLevelId || !validLevelIds.has(s.minLevelId)){
+        s.minLevelId = (typeof s.minCoachLevel === 'number') ? state.coachLevels[clampLevelIndex(s.minCoachLevel)].id : lowestId;
+      }
+      delete s.minCoachLevel;
+    });
+    // legacy free-text session.assistant -> assistantCoachId (best-effort name match)
+    Object.values(state.schedule || {}).forEach(byWeekday => {
+      Object.values(byWeekday).forEach(sessions => {
+        sessions.forEach(sess => {
+          if(sess.assistantCoachId === undefined){
+            if(sess.assistant){
+              const match = state.coaches.find(c => c.name.toLowerCase() === String(sess.assistant).trim().toLowerCase());
+              sess.assistantCoachId = match ? match.id : '';
+            } else {
+              sess.assistantCoachId = '';
+            }
+          }
+          delete sess.assistant;
+        });
+      });
+    });
+  }
+
+  async function loadState(){
+    try{
+      if(hasHostStorage()){
+        const res = await window.storage.get(STORAGE_KEY, false);
+        if(res && res.value){
+          const parsed = JSON.parse(res.value);
+          if(parsed && Array.isArray(parsed.squads)) state = parsed;
+        }
+        setStatus('Saved to your Claude.ai profile', false);
+      } else {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(raw){
+          const parsed = JSON.parse(raw);
+          if(parsed && Array.isArray(parsed.squads)) state = parsed;
+        }
+        setStatus('Saved to this browser', false);
+      }
+    }catch(e){
+      setStatus('Starting fresh — nothing saved yet', false);
+    }
+    migrateState();
+    renderAll();
+  }
+  async function saveState(){
+    try{
+      setStatus('Saving…', true);
+      if(hasHostStorage()){
+        await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
+        setStatus('Saved to your Claude.ai profile', false);
+      } else {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        setStatus('Saved to this browser', false);
+      }
+    }catch(e){
+      setStatus('Save failed — changes are local only', false);
+    }
+  }
+  function setStatus(text, busy){
+    document.getElementById('statusChipText').textContent = text;
+    document.getElementById('statusChip').querySelector('.dot').style.background = busy ? 'var(--gold)' : 'var(--spring)';
+  }
+  function commit(){ renderAll(); saveState(); }
+
+  function showFlash(msg){
+    const el = document.getElementById('flash');
+    el.textContent = msg;
+    el.classList.add('show');
+    if(flashTimer) clearTimeout(flashTimer);
+    flashTimer = setTimeout(()=> el.classList.remove('show'), 3200);
+  }
+
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0,10);
+    a.href = url; a.download = `gym-scheduler-backup-${stamp}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+  document.getElementById('importBtn').addEventListener('click', () => {
+    document.getElementById('importFile').click();
+  });
+  document.getElementById('importFile').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const parsed = JSON.parse(reader.result);
+        if(!parsed || !Array.isArray(parsed.squads)) throw new Error('not a valid backup');
+        state = parsed;
+        migrateState();
+        commit();
+        showFlash('Backup imported successfully.');
+      }catch(err){
+        showFlash('That file doesn\'t look like a valid backup.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
+  // ---------------- tabs ----------------
+  function switchTab(tab){
+    activeTab = tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+  }
+  document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+  document.getElementById('rotationLengthInput').addEventListener('change', (e) => {
+    const val = Math.max(5, Math.min(60, Math.round(Number(e.target.value)) || state.rotationLength));
+    if(val === state.rotationLength) { e.target.value = val; return; }
+    state.rotationLength = val;
+    state.allocations = {}; // old tick indices no longer correspond to the same clock times
+    showFlash(`Rotation length set to ${val} min — station allocations were cleared since slot boundaries changed.`);
+    commit();
+  });
+
+  document.getElementById('gymNameInput').addEventListener('change', (e) => {
+    state.gymName = e.target.value.trim();
+    commit();
+  });
+  document.getElementById('gymLocationInput').addEventListener('change', (e) => {
+    state.location = e.target.value.trim();
+    commit();
+  });
+  function updateMainTitle(){
+    let title = 'Rotation Scheduler';
+    if(state.gymName) title += ' ' + state.gymName;
+    if(state.location) title += ' - ' + state.location;
+    document.getElementById('mainTitle').textContent = title;
+    document.getElementById('gymNameInput').value = state.gymName || '';
+    document.getElementById('gymLocationInput').value = state.location || '';
+  }
+
+  // ---------------- cascade cleanup ----------------
+  function removeSquadEverywhere(squadId){
+    state.squads = state.squads.filter(s => s.id !== squadId);
+    delete state.schedule[squadId];
+    Object.values(state.allocations).forEach(day => {
+      Object.values(day).forEach(sqMap => { delete sqMap[squadId]; });
+    });
+  }
+  function removeStationEverywhere(stationId){
+    state.stations = state.stations.filter(s => s.id !== stationId);
+    state.conflicts = state.conflicts.filter(k => !k.split('|').includes(stationId));
+    Object.values(state.allocations).forEach(day => {
+      Object.values(day).forEach(sqMap => {
+        Object.keys(sqMap).forEach(sqId => { if(sqMap[sqId] === stationId) delete sqMap[sqId]; });
+      });
+    });
+  }
+  function removeCoachEverywhere(coachId){
+    state.coaches = state.coaches.filter(c => c.id !== coachId);
+    Object.values(state.schedule).forEach(byWeekday => {
+      Object.values(byWeekday).forEach(sessions => {
+        sessions.forEach(cfg => {
+          if(cfg.coachId === coachId) cfg.coachId = '';
+          if(cfg.assistantCoachId === coachId) cfg.assistantCoachId = '';
+        });
+      });
+    });
+  }
+
+  // ===================== SETUP: Squads =====================
+  // ===================== SETUP: Coaching Levels =====================
+  function renderLevelList(){
+    const el = document.getElementById('levelList');
+    el.innerHTML = '';
+    state.coachLevels.forEach((lvl, idx) => {
+      const row = document.createElement('div');
+      row.className = 'item-row';
+      makeRowDraggable(row, state.coachLevels, idx);
+
+      const rankTag = document.createElement('span');
+      rankTag.style.fontFamily = "'JetBrains Mono',monospace"; rankTag.style.fontSize = '11px';
+      rankTag.style.color = 'var(--slate)'; rankTag.style.width = '18px';
+      rankTag.textContent = String(idx+1);
+      row.appendChild(rankTag);
+
+      const nameInput = document.createElement('input');
+      nameInput.className = 'name-input'; nameInput.value = lvl.name;
+      nameInput.addEventListener('change', () => { lvl.name = nameInput.value || lvl.name; commit(); });
+      row.appendChild(nameInput);
+
+      const rm = document.createElement('button');
+      rm.className = 'remove-btn'; rm.textContent = 'Remove';
+      rm.addEventListener('click', () => {
+        if(state.coachLevels.length <= 1){ showFlash('At least one coaching level is required.'); return; }
+        const removedId = lvl.id;
+        state.coachLevels.splice(idx,1);
+        const fallbackId = state.coachLevels[0].id;
+        state.coaches.forEach(c => { if(c.levelId === removedId) c.levelId = fallbackId; });
+        state.squads.forEach(s => { if(s.minLevelId === removedId) s.minLevelId = fallbackId; });
+        commit();
+      });
+      row.appendChild(rm);
+
+      el.appendChild(row);
+    });
+  }
+  document.getElementById('addLevelBtn').addEventListener('click', () => {
+    state.coachLevels.push({id: uid('lvl'), name:'New Level'});
+    commit();
+  });
+
+  function renderSquadList(){
+    const el = document.getElementById('squadList');
+    el.innerHTML = '';
+    if(state.squads.length === 0){ el.innerHTML = '<p class="empty-note">No squads yet — add one below.</p>'; }
+    state.squads.forEach((s, idx) => {
+      if(!s.minLevelId) s.minLevelId = state.coachLevels[0].id;
+      const row = document.createElement('div');
+      row.className = 'item-row';
+      const swatch = document.createElement('input');
+      swatch.type = 'color'; swatch.className = 'swatch-btn'; swatch.value = s.color;
+      swatch.addEventListener('change', () => { s.color = swatch.value; commit(); });
+      row.appendChild(swatch);
+      const nameInput = document.createElement('input');
+      nameInput.className = 'name-input'; nameInput.value = s.name;
+      nameInput.addEventListener('change', () => { s.name = nameInput.value || s.name; commit(); });
+      row.appendChild(nameInput);
+
+      const levelWrap = document.createElement('label');
+      levelWrap.style.display = 'flex'; levelWrap.style.alignItems = 'center'; levelWrap.style.gap = '6px';
+      levelWrap.style.fontFamily = "'JetBrains Mono',monospace"; levelWrap.style.fontSize = '11px'; levelWrap.style.color = 'var(--slate)';
+      levelWrap.appendChild(document.createTextNode('min coach level'));
+      const levelSelect = document.createElement('select');
+      levelSelect.style.padding = '5px'; levelSelect.style.border = '1px solid var(--line)';
+      levelSelect.style.borderRadius = '5px'; levelSelect.style.fontFamily = "'JetBrains Mono',monospace"; levelSelect.style.fontSize = '11px';
+      state.coachLevels.forEach(lvl => {
+        const opt = document.createElement('option');
+        opt.value = lvl.id; opt.textContent = lvl.name;
+        if(s.minLevelId === lvl.id) opt.selected = true;
+        levelSelect.appendChild(opt);
+      });
+      levelSelect.addEventListener('change', () => { s.minLevelId = levelSelect.value; commit(); });
+      levelWrap.appendChild(levelSelect);
+      row.appendChild(levelWrap);
+
+      makeRowDraggable(row, state.squads, idx);
+
+      const rm = document.createElement('button');
+      rm.className = 'remove-btn'; rm.textContent = 'Remove';
+      rm.addEventListener('click', () => { removeSquadEverywhere(s.id); commit(); });
+      row.appendChild(rm);
+      el.appendChild(row);
+    });
+  }
+  document.getElementById('addSquadBtn').addEventListener('click', () => {
+    state.squads.push({id: uid('sq'), name:'New Squad', color: PALETTE[state.squads.length % PALETTE.length], minLevelId: state.coachLevels[0].id});
+    commit();
+  });
+
+  // ===================== SETUP: Stations =====================
+  function renderStationList(){
+    const el = document.getElementById('stationList');
+    el.innerHTML = '';
+    if(state.stations.length === 0){ el.innerHTML = '<p class="empty-note">No stations yet — add one below.</p>'; }
+    state.stations.forEach((st, idx) => {
+      if(!st.capacity) st.capacity = 1;
+      const row = document.createElement('div');
+      row.className = 'item-row';
+      const swatch = document.createElement('input');
+      swatch.type = 'color'; swatch.className = 'swatch-btn'; swatch.value = st.color;
+      swatch.addEventListener('change', () => { st.color = swatch.value; commit(); });
+      row.appendChild(swatch);
+      const nameInput = document.createElement('input');
+      nameInput.className = 'name-input'; nameInput.value = st.name;
+      nameInput.addEventListener('change', () => { st.name = nameInput.value || st.name; commit(); });
+      row.appendChild(nameInput);
+
+      const capWrap = document.createElement('label');
+      capWrap.style.display = 'flex'; capWrap.style.alignItems = 'center'; capWrap.style.gap = '6px';
+      capWrap.style.fontFamily = "'JetBrains Mono',monospace"; capWrap.style.fontSize = '11px'; capWrap.style.color = 'var(--slate)';
+      const capInput = document.createElement('input');
+      capInput.type = 'number'; capInput.min = 1; capInput.step = 1; capInput.value = st.capacity;
+      capInput.style.width = '52px'; capInput.style.padding = '5px'; capInput.style.border = '1px solid var(--line)';
+      capInput.style.borderRadius = '5px'; capInput.style.fontFamily = "'JetBrains Mono',monospace";
+      capInput.addEventListener('change', () => { st.capacity = Math.max(1, Math.round(Number(capInput.value)) || 1); commit(); });
+      capWrap.appendChild(document.createTextNode('capacity'));
+      capWrap.appendChild(capInput);
+      capWrap.appendChild(document.createTextNode('squad(s) at once'));
+      row.appendChild(capWrap);
+
+      makeRowDraggable(row, state.stations, idx);
+
+      const rm = document.createElement('button');
+      rm.className = 'remove-btn'; rm.textContent = 'Remove';
+      rm.addEventListener('click', () => { removeStationEverywhere(st.id); commit(); });
+      row.appendChild(rm);
+      el.appendChild(row);
+    });
+  }
+  document.getElementById('addStationBtn').addEventListener('click', () => {
+    state.stations.push({id: uid('st'), name:'New Station', color:'#6B7A99', capacity:1});
+    commit();
+  });
+
+  // ===================== SETUP: Coaches =====================
+  function renderCoachList(){
+    const el = document.getElementById('coachList');
+    el.innerHTML = '';
+    if(state.coaches.length === 0){ el.innerHTML = '<p class="empty-note">No coaches yet — add one below.</p>'; }
+    state.coaches.forEach((c, idx) => {
+      if(!c.levelId) c.levelId = state.coachLevels[0].id;
+      if(!c.maxConcurrent) c.maxConcurrent = 1;
+      const row = document.createElement('div');
+      row.className = 'item-row';
+      const nameInput = document.createElement('input');
+      nameInput.className = 'name-input'; nameInput.value = c.name;
+      nameInput.addEventListener('change', () => { c.name = nameInput.value || c.name; commit(); });
+      row.appendChild(nameInput);
+
+      const levelWrap = document.createElement('label');
+      levelWrap.style.display = 'flex'; levelWrap.style.alignItems = 'center'; levelWrap.style.gap = '6px';
+      levelWrap.style.fontFamily = "'JetBrains Mono',monospace"; levelWrap.style.fontSize = '11px'; levelWrap.style.color = 'var(--slate)';
+      levelWrap.appendChild(document.createTextNode('level'));
+      const levelSelect = document.createElement('select');
+      levelSelect.style.padding = '5px'; levelSelect.style.border = '1px solid var(--line)';
+      levelSelect.style.borderRadius = '5px'; levelSelect.style.fontFamily = "'JetBrains Mono',monospace"; levelSelect.style.fontSize = '11px';
+      state.coachLevels.forEach(lvl => {
+        const opt = document.createElement('option');
+        opt.value = lvl.id; opt.textContent = lvl.name;
+        if(c.levelId === lvl.id) opt.selected = true;
+        levelSelect.appendChild(opt);
+      });
+      levelSelect.addEventListener('change', () => { c.levelId = levelSelect.value; commit(); });
+      levelWrap.appendChild(levelSelect);
+      row.appendChild(levelWrap);
+
+      const maxWrap = document.createElement('label');
+      maxWrap.style.display = 'flex'; maxWrap.style.alignItems = 'center'; maxWrap.style.gap = '6px';
+      maxWrap.style.fontFamily = "'JetBrains Mono',monospace"; maxWrap.style.fontSize = '11px'; maxWrap.style.color = 'var(--slate)';
+      const maxInput = document.createElement('input');
+      maxInput.type = 'number'; maxInput.min = 1; maxInput.step = 1; maxInput.value = c.maxConcurrent;
+      maxInput.style.width = '48px'; maxInput.style.padding = '5px'; maxInput.style.border = '1px solid var(--line)';
+      maxInput.style.borderRadius = '5px'; maxInput.style.fontFamily = "'JetBrains Mono',monospace";
+      maxInput.addEventListener('change', () => { c.maxConcurrent = Math.max(1, Math.round(Number(maxInput.value)) || 1); commit(); });
+      maxWrap.appendChild(document.createTextNode('max concurrent squads'));
+      maxWrap.appendChild(maxInput);
+      row.appendChild(maxWrap);
+
+      makeRowDraggable(row, state.coaches, idx);
+
+      const rm = document.createElement('button');
+      rm.className = 'remove-btn'; rm.textContent = 'Remove';
+      rm.addEventListener('click', () => { removeCoachEverywhere(c.id); commit(); });
+      row.appendChild(rm);
+      el.appendChild(row);
+    });
+  }
+  document.getElementById('addCoachBtn').addEventListener('click', () => {
+    state.coaches.push({id: uid('co'), name:'New Coach', levelId: state.coachLevels[0].id, maxConcurrent: 1});
+    commit();
+  });
+
+  // ===================== SETUP: Conflict matrix =====================
+  function renderConflictMatrix(){
+    const el = document.getElementById('conflictMatrix');
+    el.innerHTML = '';
+    const summary = document.getElementById('conflictSummary');
+    summary.innerHTML = '';
+    if(state.stations.length < 2){
+      el.innerHTML = '<p class="empty-note">Add at least two stations to set conflicts.</p>';
+      return;
+    }
+    const table = document.createElement('table');
+    table.className = 'matrix';
+    const thead = document.createElement('tr');
+    thead.appendChild(document.createElement('th'));
+    state.stations.forEach(st => {
+      const th = document.createElement('th');
+      th.textContent = st.name;
+      thead.appendChild(th);
+    });
+    table.appendChild(thead);
+
+    state.stations.forEach(rowSt => {
+      const tr = document.createElement('tr');
+      const rh = document.createElement('th');
+      rh.className = 'rowhead'; rh.textContent = rowSt.name;
+      tr.appendChild(rh);
+      state.stations.forEach(colSt => {
+        const td = document.createElement('td');
+        const cell = document.createElement('div');
+        if(rowSt.id === colSt.id){
+          cell.className = 'mx-cell disabled';
+        } else {
+          const key = pairKey(rowSt.id, colSt.id);
+          const active = state.conflicts.includes(key);
+          cell.className = 'mx-cell' + (active ? ' conflict' : '');
+          if(active){
+            cell.style.background = `linear-gradient(90deg, ${rowSt.color} 50%, ${colSt.color} 50%)`;
+            cell.style.border = '2px solid var(--ink)';
+          }
+          cell.title = rowSt.name + ' × ' + colSt.name;
+          cell.addEventListener('click', () => {
+            const idx = state.conflicts.indexOf(key);
+            if(idx >= 0) state.conflicts.splice(idx,1); else state.conflicts.push(key);
+            commit();
+          });
+        }
+        td.appendChild(cell);
+        tr.appendChild(td);
+      });
+      table.appendChild(tr);
+    });
+    const matrixScroll = document.createElement('div');
+    matrixScroll.className = 'rota-scroll';
+    matrixScroll.appendChild(table);
+    el.appendChild(matrixScroll);
+
+    state.conflicts.forEach(key => {
+      const [a,b] = key.split('|');
+      const sa = state.stations.find(s=>s.id===a), sb = state.stations.find(s=>s.id===b);
+      if(sa && sb){
+        const span = document.createElement('span');
+        span.style.background = `linear-gradient(90deg, ${sa.color} 50%, ${sb.color} 50%)`;
+        span.style.color = '#fff';
+        span.style.textShadow = '0 1px 2px rgba(0,0,0,.5)';
+        span.textContent = sa.name + ' ⇄ ' + sb.name;
+        summary.appendChild(span);
+      }
+    });
+  }
+
+  // ===================== TRAINING SCHEDULE =====================
+  function buildSessionBlock(s, weekday, session){
+    const block = document.createElement('div');
+    block.className = 'session-block';
+
+    const labelRow = document.createElement('div');
+    labelRow.className = 'session-label-row';
+    const labelInput = document.createElement('input');
+    labelInput.type = 'text'; labelInput.value = session.label || 'Session';
+    labelInput.addEventListener('change', () => { session.label = labelInput.value || 'Session'; commit(); });
+    labelRow.appendChild(labelInput);
+    const xBtn = document.createElement('button');
+    xBtn.className = 'session-x'; xBtn.textContent = '✕'; xBtn.title = 'Remove this session';
+    xBtn.addEventListener('click', () => {
+      const arr = state.schedule[s.id][weekday];
+      const idx = arr.indexOf(session);
+      if(idx >= 0) arr.splice(idx,1);
+      if(arr.length === 0) delete state.schedule[s.id][weekday];
+      commit();
+    });
+    labelRow.appendChild(xBtn);
+    block.appendChild(labelRow);
+
+    const timeInput = document.createElement('input');
+    timeInput.type = 'time'; timeInput.value = session.startTime;
+    timeInput.addEventListener('change', () => { session.startTime = timeInput.value || session.startTime; commit(); });
+    block.appendChild(timeInput);
+
+    const durRow = document.createElement('div');
+    durRow.className = 'dur-row';
+    const durInput = document.createElement('input');
+    durInput.type = 'number'; durInput.min = state.rotationLength; durInput.step = state.rotationLength; durInput.value = session.duration;
+    durInput.addEventListener('change', () => {
+      const rl = state.rotationLength;
+      session.duration = Math.max(rl, Math.round((Number(durInput.value)||session.duration)/rl)*rl);
+      commit();
+    });
+    durRow.appendChild(durInput);
+    const durLabel = document.createElement('span');
+    durLabel.textContent = 'min';
+    durRow.appendChild(durLabel);
+    block.appendChild(durRow);
+
+    const finishNote = document.createElement('div');
+    finishNote.style.fontSize = '9px'; finishNote.style.color = 'var(--slate)';
+    finishNote.style.fontFamily = "'JetBrains Mono',monospace"; finishNote.style.margin = '3px 0'; finishNote.style.textAlign = 'center';
+    finishNote.textContent = 'Finishes ' + fmt12(toMinutes(session.startTime) + session.duration);
+    block.appendChild(finishNote);
+
+    const coachSelect = document.createElement('select');
+    const noneOpt = document.createElement('option');
+    noneOpt.value = ''; noneOpt.textContent = '— coach —';
+    if(!session.coachId) noneOpt.selected = true;
+    coachSelect.appendChild(noneOpt);
+    const currentCoach = state.coaches.find(c => c.id === session.coachId);
+    state.coaches.forEach(c => {
+      const qualified = isQualified(c, s);
+      if(!qualified && c.id !== session.coachId) return; // hide unqualified coaches, except keep the one already assigned
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.name + ` (${levelName(c.levelId)})` + (!qualified ? ' — below required level' : '');
+      if(session.coachId === c.id) opt.selected = true;
+      coachSelect.appendChild(opt);
+    });
+    if(state.coaches.every(c => !isQualified(c, s))){
+      const warnOpt = document.createElement('option');
+      warnOpt.disabled = true; warnOpt.textContent = `No coach meets ${s.name}'s required level (${levelName(s.minLevelId)})`;
+      coachSelect.appendChild(warnOpt);
+    }
+    coachSelect.addEventListener('change', () => {
+      const newCoachId = coachSelect.value;
+      if(!newCoachId){ session.coachId = ''; commit(); return; }
+      const coach = state.coaches.find(c => c.id === newCoachId);
+      const startMin = toMinutes(session.startTime), endMin = startMin + session.duration;
+      const overlap = coachOverlapCount(newCoachId, weekday, startMin, endMin, session.id);
+      const maxConcurrent = coach.maxConcurrent || 1;
+      if(overlap + 1 > maxConcurrent){
+        showFlash(`${coach.name} is already supervising ${overlap} squad(s) at this time — their max is ${maxConcurrent}.`);
+        renderScheduleList();
+        return;
+      }
+      session.coachId = newCoachId;
+      if(session.assistantCoachId === newCoachId) session.assistantCoachId = ''; // can't be both
+      commit();
+    });
+    block.appendChild(coachSelect);
+
+    const assistantSelect = document.createElement('select');
+    const noAsstOpt = document.createElement('option');
+    noAsstOpt.value = ''; noAsstOpt.textContent = '— assistant —';
+    if(!session.assistantCoachId) noAsstOpt.selected = true;
+    assistantSelect.appendChild(noAsstOpt);
+    state.coaches.filter(c => c.id !== session.coachId).forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id; opt.textContent = c.name;
+      if(session.assistantCoachId === c.id) opt.selected = true;
+      assistantSelect.appendChild(opt);
+    });
+    assistantSelect.addEventListener('change', () => { session.assistantCoachId = assistantSelect.value; commit(); });
+    block.appendChild(assistantSelect);
+
+    return block;
+  }
+
+  function buildDayCard(s, weekday){
+    const sessions = (state.schedule[s.id] && state.schedule[s.id][weekday]) || [];
+    const card = document.createElement('div');
+    card.className = 'day-card';
+
+    const abbr = document.createElement('div');
+    abbr.className = 'abbr'; abbr.textContent = dayAbbr(weekday);
+    card.appendChild(abbr);
+
+    if(sessions.length === 0){
+      const hint = document.createElement('div');
+      hint.className = 'off-hint'; hint.textContent = 'off — click to add a session';
+      hint.addEventListener('click', () => {
+        if(!state.schedule[s.id]) state.schedule[s.id] = {};
+        state.schedule[s.id][weekday] = [{id: uid('sess'), label:'Session', startTime:'16:00', duration: state.rotationLength*4, coachId:''}];
+        commit();
+      });
+      card.appendChild(hint);
+      return card;
+    }
+
+    sessions.forEach(session => card.appendChild(buildSessionBlock(s, weekday, session)));
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'add-session-btn';
+    addBtn.textContent = sessions.length === 1 ? '+ Add Afternoon Session' : '+ Add Session';
+    addBtn.addEventListener('click', () => {
+      const defaultLabel = sessions.length === 0 ? 'Morning' : (sessions.length === 1 ? 'Afternoon' : 'Session ' + (sessions.length+1));
+      sessions.push({id: uid('sess'), label: defaultLabel, startTime:'16:00', duration: state.rotationLength*4, coachId:''});
+      commit();
+    });
+    card.appendChild(addBtn);
+
+    return card;
+  }
+
+  function renderScheduleList(){
+    const el = document.getElementById('scheduleList');
+    el.innerHTML = '';
+    if(state.squads.length === 0){ el.innerHTML = '<p class="empty-note">Add a squad in Setup first.</p>'; return; }
+    state.squads.forEach(s => {
+      if(!state.schedule[s.id]) state.schedule[s.id] = {};
+      const block = document.createElement('div');
+      block.className = 'squad-block';
+
+      const head = document.createElement('div');
+      head.className = 'squad-block-head';
+      head.innerHTML = `<span class="swatch" style="background:${s.color}"></span>${s.name} <span style="font-weight:400;font-size:12px;color:var(--slate);font-family:'JetBrains Mono',monospace;">(${levelName(s.minLevelId)})</span>`;
+      block.appendChild(head);
+
+      const grid = document.createElement('div');
+      grid.className = 'day-grid';
+      for(let i = 0; i < 7; i++) grid.appendChild(buildDayCard(s, i));
+      block.appendChild(grid);
+
+      el.appendChild(block);
+    });
+  }
+
+  // ===================== shared session helpers =====================
+  // Session times/coaches are a weekly template (state.schedule is keyed 0-6, each
+  // holding an ARRAY of sessions); rotations/allocations track the full 14-day
+  // cycle (dayIndex 0-13), so we map dayIndex -> weekday whenever reading the schedule.
+  function sessionTicks(session){
+    const rl = state.rotationLength;
+    const startTick = Math.round(toMinutes(session.startTime) / rl);
+    const endTick = startTick + Math.round(session.duration / rl);
+    return {startTick, endTick};
+  }
+  function findSessionAtTick(squadId, dayIndex, tick){
+    const sessions = ((state.schedule[squadId] || {})[weekdayOf(dayIndex)]) || [];
+    for(const session of sessions){
+      const {startTick, endTick} = sessionTicks(session);
+      if(tick >= startTick && tick < endTick) return session;
+    }
+    return null;
+  }
+  function squadsInSessionAtTick(dayIndex, tick){
+    return state.squads.filter(s => findSessionAtTick(s.id, dayIndex, tick) !== null);
+  }
+  function squadInSessionAtTick(squadId, dayIndex, tick){
+    return findSessionAtTick(squadId, dayIndex, tick) !== null;
+  }
+  function dayTickRange(dayIndex){
+    const weekday = weekdayOf(dayIndex);
+    let min = null, max = null;
+    state.squads.forEach(s => {
+      const sessions = ((state.schedule[s.id] || {})[weekday]) || [];
+      sessions.forEach(session => {
+        const {startTick, endTick} = sessionTicks(session);
+        if(min === null || startTick < min) min = startTick;
+        if(max === null || endTick > max) max = endTick;
+      });
+    });
+    return {min, max};
+  }
+  function squadsTrainingOnDay(dayIndex){
+    const weekday = weekdayOf(dayIndex);
+    return state.squads.filter(s => ((state.schedule[s.id]||{})[weekday]||[]).length > 0);
+  }
+
+  // Counts how many OTHER sessions (any squad) this coach already runs on the given
+  // weekday that overlap the given time range - used to enforce max concurrent squads.
+  function coachOverlapCount(coachId, weekday, startMin, endMin, excludeSessionId){
+    let count = 0;
+    state.squads.forEach(sq => {
+      ((state.schedule[sq.id]||{})[weekday]||[]).forEach(sess => {
+        if(sess.id === excludeSessionId) return;
+        if(sess.coachId !== coachId) return;
+        const sStart = toMinutes(sess.startTime), sEnd = sStart + sess.duration;
+        if(sStart < endMin && sEnd > startMin) count++;
+      });
+    });
+    return count;
+  }
+
+  // ===================== ROTATIONS =====================
+  function getAlloc(dayIndex, tick, squadId){
+    return (((state.allocations[dayIndex]||{})[tick]||{})[squadId]) || '';
+  }
+  function setAlloc(dayIndex, tick, squadId, stationId){
+    if(!state.allocations[dayIndex]) state.allocations[dayIndex] = {};
+    if(!state.allocations[dayIndex][tick]) state.allocations[dayIndex][tick] = {};
+    if(stationId){
+      state.allocations[dayIndex][tick][squadId] = stationId;
+    } else {
+      delete state.allocations[dayIndex][tick][squadId];
+    }
+  }
+
+  function renderDayPickerRota(){
+    const el = document.getElementById('dayPickerRota');
+    el.innerHTML = '';
+    [0, 7].forEach(weekStart => {
+      const weekLabel = document.createElement('div');
+      weekLabel.className = 'week-label';
+      weekLabel.textContent = 'Week ' + (weekStart === 0 ? 1 : 2);
+      el.appendChild(weekLabel);
+
+      const row = document.createElement('div');
+      row.className = 'day-cards';
+      for(let dayIndex = weekStart; dayIndex < weekStart + 7; dayIndex++){
+        const squadsToday = squadsTrainingOnDay(dayIndex);
+        const card = document.createElement('div');
+        card.className = 'pick-card' + (state.selectedDay === dayIndex ? ' selected' : '');
+        card.innerHTML = `
+          <div class="abbr">${dayAbbr(dayIndex)}</div>
+          <div class="sub">${squadsToday.length ? squadsToday.length+' sq' : '—'}</div>
+          <div class="pick-dots">${squadsToday.map(s=>`<span style="background:${s.color}"></span>`).join('')}</div>
+        `;
+        card.addEventListener('click', () => { state.selectedDay = dayIndex; commit(); });
+        row.appendChild(card);
+      }
+      el.appendChild(row);
+    });
+  }
+
+  // Builds one rotation-board table for a given day. interactive=true adds live
+  // dropdowns with conflict checking (used on-screen); interactive=false renders
+  // plain read-only cells (used for the print/PDF view).
+  function buildRotaTable(dayIndex, interactive){
+    const squadsToday = squadsTrainingOnDay(dayIndex);
+    if(state.stations.length === 0 || squadsToday.length === 0) return null;
+    const {min, max} = dayTickRange(dayIndex);
+    if(min === null) return null;
+
+    const table = document.createElement('table');
+    table.className = interactive ? 'rota' : 'print-table';
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+    trh.appendChild(document.createElement('th'));
+    squadsToday.forEach(s => {
+      const th = document.createElement('th');
+      const sessions = ((state.schedule[s.id]||{})[weekdayOf(dayIndex)])||[];
+      const coachNames = [...new Set(sessions.map(ses => {
+        const c = state.coaches.find(x=>x.id===ses.coachId);
+        let name = c ? c.name : null;
+        const asst = state.coaches.find(x=>x.id===ses.assistantCoachId);
+        if(name && asst) name += ` (+${asst.name})`;
+        if(name && sessions.length>1) name = `${ses.label}: ${name}`;
+        return name;
+      }).filter(Boolean))];
+      th.innerHTML = `<span class="swatch" style="background:${s.color};display:inline-block;margin-right:5px;"></span>${s.name}` +
+        (coachNames.length ? `<span class="coach-sub">${coachNames.join(' · ')}</span>` : `<span class="coach-sub">No coach assigned</span>`);
+      trh.appendChild(th);
+    });
+    thead.appendChild(trh);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    for(let tick = min; tick < max; tick++){
+      const inSessionSquads = squadsInSessionAtTick(dayIndex, tick);
+      if(inSessionSquads.length === 0) continue;
+
+      const tr = document.createElement('tr');
+      const labelTd = document.createElement('td');
+      labelTd.className = 'tick-label';
+      labelTd.textContent = fmt12(tick*state.rotationLength) + '–' + fmt12((tick+1)*state.rotationLength);
+      tr.appendChild(labelTd);
+
+      squadsToday.forEach(s => {
+        const td = document.createElement('td');
+        if(!squadInSessionAtTick(s.id, dayIndex, tick)){
+          const dash = document.createElement('span');
+          dash.className = interactive ? 'rota-dash' : '';
+          dash.textContent = '—';
+          td.appendChild(dash);
+          tr.appendChild(td);
+          return;
+        }
+
+        const currentStationId = getAlloc(dayIndex, tick, s.id);
+        const currentStation = state.stations.find(x => x.id === currentStationId);
+
+        if(!interactive){
+          td.textContent = currentStation ? currentStation.name : 'Open';
+          if(currentStation){ td.style.background = currentStation.color; td.style.color = '#fff'; }
+          tr.appendChild(td);
+          return;
+        }
+
+        const select = document.createElement('select');
+        select.className = 'rota-select';
+        select.style.background = currentStation ? currentStation.color : '';
+        select.style.color = currentStation ? '#fff' : '';
+        select.style.borderColor = currentStation ? currentStation.color : '';
+
+        const openOpt = document.createElement('option');
+        openOpt.value = ''; openOpt.textContent = '— open —';
+        if(!currentStationId) openOpt.selected = true;
+        select.appendChild(openOpt);
+
+        const dayAllocsForOptions = (state.allocations[dayIndex] || {})[tick] || {};
+        state.stations.forEach(st => {
+          const opt = document.createElement('option');
+          const cap = st.capacity || 1;
+          const used = Object.keys(dayAllocsForOptions).filter(sqId => sqId !== s.id && dayAllocsForOptions[sqId] === st.id).length;
+          opt.value = st.id;
+          opt.textContent = cap > 1 ? `${st.name} (${used}/${cap})` : st.name;
+          opt.style.backgroundColor = st.color;
+          opt.style.color = '#fff';
+          if(st.id === currentStationId) opt.selected = true;
+          select.appendChild(opt);
+        });
+
+        select.addEventListener('change', () => {
+          const newStationId = select.value;
+          const newStation = state.stations.find(x=>x.id===newStationId);
+          if(!newStationId){
+            setAlloc(dayIndex, tick, s.id, '');
+            commit();
+            return;
+          }
+          const dayAllocs = (state.allocations[dayIndex] || {})[tick] || {};
+          const occupantIds = Object.keys(dayAllocs).filter(sqId => sqId !== s.id && dayAllocs[sqId] === newStationId);
+          const capacity = newStation.capacity || 1;
+          if(occupantIds.length >= capacity){
+            const names = occupantIds.map(id => (state.squads.find(x=>x.id===id)||{}).name).filter(Boolean).join(', ');
+            showFlash(`${newStation.name} is at capacity (${occupantIds.length}/${capacity}) at this time — already in use by ${names}.`);
+            renderRotaBoard();
+            return;
+          }
+          for(const otherSqId in dayAllocs){
+            if(otherSqId === s.id) continue;
+            const otherStId = dayAllocs[otherSqId];
+            if(!otherStId) continue;
+            if(state.conflicts.includes(pairKey(newStationId, otherStId))){
+              const otherSt = state.stations.find(x=>x.id===otherStId);
+              const otherSq = state.squads.find(x=>x.id===otherSqId);
+              showFlash(`${newStation.name} conflicts with ${otherSt ? otherSt.name : 'another station'}, already in use by ${otherSq ? otherSq.name : 'a squad'} at this time.`);
+              renderRotaBoard();
+              return;
+            }
+          }
+          setAlloc(dayIndex, tick, s.id, newStationId);
+          commit();
+        });
+
+        td.appendChild(select);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    return table;
+  }
+
+  function renderRotaBoard(){
+    document.getElementById('selectedDayLabelRota').textContent = dayLabel(state.selectedDay);
+    const container = document.getElementById('rotaBoard');
+    container.innerHTML = '';
+
+    if(state.stations.length === 0){
+      container.innerHTML = '<p class="empty-note">Add at least one station in Setup first.</p>';
+      return;
+    }
+    if(squadsTrainingOnDay(state.selectedDay).length === 0){
+      container.innerHTML = '<p class="empty-note">No squads train on this day.</p>';
+      return;
+    }
+    const table = buildRotaTable(state.selectedDay, true);
+    if(table){
+      const scrollWrap = document.createElement('div');
+      scrollWrap.className = 'rota-scroll';
+      scrollWrap.appendChild(table);
+      container.appendChild(scrollWrap);
+    }
+  }
+
+  // ===================== PRINT 14-DAY PDF =====================
+  document.getElementById('printBtn').addEventListener('click', () => {
+    const printArea = document.getElementById('printArea');
+    printArea.innerHTML = '';
+    let anyDay = false;
+    for(let dayIndex = 0; dayIndex < 14; dayIndex++){
+      const table = buildRotaTable(dayIndex, false);
+      if(!table) continue;
+      anyDay = true;
+      const page = document.createElement('div');
+      page.className = 'print-day';
+      const h2 = document.createElement('h2');
+      h2.textContent = dayLabel(dayIndex);
+      const sub = document.createElement('div');
+      sub.className = 'print-sub';
+      sub.textContent = squadsTrainingOnDay(dayIndex).map(s=>s.name).join(' · ');
+      page.appendChild(h2);
+      page.appendChild(sub);
+      page.appendChild(table);
+      printArea.appendChild(page);
+    }
+    if(!anyDay){
+      showFlash('Nothing to print yet — set up squads, stations, and session times first.');
+      return;
+    }
+    window.print();
+  });
+
+  // ===================== STAFFING =====================
+  function renderRoster(){
+    const el = document.getElementById('rosterTable');
+    el.innerHTML = '';
+    let any = false;
+    for(let weekday = 0; weekday < 7; weekday++){
+      const rows = [];
+      squadsTrainingOnDay(weekday).forEach(s => {
+        (state.schedule[s.id][weekday]||[]).forEach(session => rows.push({s, session}));
+      });
+      rows.sort((a,b) => toMinutes(a.session.startTime) - toMinutes(b.session.startTime));
+      if(rows.length === 0) continue;
+      any = true;
+
+      const title = document.createElement('div');
+      title.className = 'roster-day-title';
+      title.textContent = DAY_NAMES[weekday];
+      el.appendChild(title);
+
+      const table = document.createElement('table');
+      table.className = 'roster';
+      const thead = document.createElement('tr');
+      ['Squad','Session','Time','Coach','Assistant'].forEach(h => { const th = document.createElement('th'); th.textContent = h; thead.appendChild(th); });
+      table.appendChild(thead);
+
+      rows.forEach(({s, session}) => {
+        const startMin = toMinutes(session.startTime);
+        const endMin = startMin + session.duration;
+        const coach = session.coachId ? (state.coaches.find(c=>c.id===session.coachId)||{}).name : null;
+
+        const tr = document.createElement('tr');
+        const tdSquad = document.createElement('td');
+        tdSquad.innerHTML = `<span class="swatch" style="background:${s.color};display:inline-block;margin-right:7px;"></span>${s.name}`;
+        tr.appendChild(tdSquad);
+        const tdLabel = document.createElement('td'); tdLabel.textContent = session.label || 'Session';
+        tr.appendChild(tdLabel);
+        const tdTime = document.createElement('td');
+        tdTime.className = 'time-cell';
+        tdTime.textContent = fmt12(startMin) + ' – ' + fmt12(endMin);
+        tr.appendChild(tdTime);
+        const tdCoach = document.createElement('td');
+        if(coach){
+          tdCoach.className = 'coach-cell';
+          tdCoach.textContent = coach;
+        } else {
+          tdCoach.className = 'coach-cell unassigned';
+          tdCoach.textContent = 'UNASSIGNED';
+        }
+        tr.appendChild(tdCoach);
+        const tdAssistant = document.createElement('td');
+        const asst = state.coaches.find(c => c.id === session.assistantCoachId);
+        tdAssistant.textContent = asst ? asst.name : '—';
+        tr.appendChild(tdAssistant);
+        table.appendChild(tr);
+      });
+      el.appendChild(table);
+    }
+    if(!any) el.innerHTML = '<p class="empty-note">No sessions scheduled yet — set squad session times in Training Schedule.</p>';
+  }
+
+  function renderCoachRosters(){
+    const el = document.getElementById('coachRosterTable');
+    if(state.coaches.length === 0){ el.innerHTML = '<p class="empty-note">Add a coach in Setup first.</p>'; return; }
+    el.innerHTML = '';
+    state.coaches.forEach(c => {
+      const sessions = [];
+      for(let weekday = 0; weekday < 7; weekday++){
+        squadsTrainingOnDay(weekday).forEach(s => {
+          (state.schedule[s.id][weekday]||[]).forEach(session => {
+            if(session.coachId === c.id) sessions.push({weekday, squad:s, session});
+          });
+        });
+      }
+      sessions.sort((a,b) => a.weekday - b.weekday || toMinutes(a.session.startTime) - toMinutes(b.session.startTime));
+
+      const title = document.createElement('div');
+      title.className = 'roster-day-title';
+      title.textContent = c.name;
+      el.appendChild(title);
+
+      if(sessions.length === 0){
+        const p = document.createElement('p');
+        p.className = 'empty-note'; p.textContent = 'No sessions assigned this week.';
+        el.appendChild(p);
+        return;
+      }
+
+      const table = document.createElement('table');
+      table.className = 'roster';
+      const thead = document.createElement('tr');
+      ['Day','Squad','Session','Time'].forEach(h => { const th = document.createElement('th'); th.textContent = h; thead.appendChild(th); });
+      table.appendChild(thead);
+      sessions.forEach(({weekday, squad, session}) => {
+        const startMin = toMinutes(session.startTime);
+        const endMin = startMin + session.duration;
+        const tr = document.createElement('tr');
+        const tdDay = document.createElement('td'); tdDay.textContent = DAY_NAMES[weekday]; tr.appendChild(tdDay);
+        const tdSquad = document.createElement('td');
+        tdSquad.innerHTML = `<span class="swatch" style="background:${squad.color};display:inline-block;margin-right:7px;"></span>${squad.name}`;
+        tr.appendChild(tdSquad);
+        const tdLabel = document.createElement('td'); tdLabel.textContent = session.label || 'Session'; tr.appendChild(tdLabel);
+        const tdTime = document.createElement('td'); tdTime.className = 'time-cell';
+        tdTime.textContent = fmt12(startMin) + ' – ' + fmt12(endMin);
+        tr.appendChild(tdTime);
+        table.appendChild(tr);
+      });
+      el.appendChild(table);
+    });
+  }
+
+  function renderCoachLoad(){
+    const el = document.getElementById('coachLoadTable');
+    if(state.coaches.length === 0){ el.innerHTML = '<p class="empty-note">Add a coach in Setup first.</p>'; return; }
+    const counts = {};
+    state.coaches.forEach(c => counts[c.id] = 0);
+    let unassigned = 0;
+    for(let weekday = 0; weekday < 7; weekday++){
+      squadsTrainingOnDay(weekday).forEach(s => {
+        (state.schedule[s.id][weekday]||[]).forEach(session => {
+          if(session.coachId && counts[session.coachId] !== undefined) counts[session.coachId]++;
+          else unassigned++;
+        });
+      });
+    }
+    const table = document.createElement('table');
+    table.className = 'coach-load';
+    const thead = document.createElement('tr');
+    ['Coach','Sessions per week'].forEach(h => { const th = document.createElement('th'); th.textContent = h; thead.appendChild(th); });
+    table.appendChild(thead);
+    state.coaches.forEach(c => {
+      const tr = document.createElement('tr');
+      const td1 = document.createElement('td'); td1.textContent = c.name; tr.appendChild(td1);
+      const td2 = document.createElement('td'); td2.textContent = counts[c.id]; tr.appendChild(td2);
+      table.appendChild(tr);
+    });
+    if(unassigned > 0){
+      const tr = document.createElement('tr');
+      const td1 = document.createElement('td'); td1.textContent = 'Unassigned'; td1.style.color = 'var(--mat-red)'; tr.appendChild(td1);
+      const td2 = document.createElement('td'); td2.textContent = unassigned; td2.style.color = 'var(--mat-red)'; tr.appendChild(td2);
+      table.appendChild(tr);
+    }
+    el.innerHTML = '';
+    el.appendChild(table);
+  }
+
+  // ===================== OVERVIEW =====================
+  function computeUsageCounts(dayFilter){
+    const counts = {};
+    state.squads.forEach(s => { counts[s.id] = {}; state.stations.forEach(st => counts[s.id][st.id] = 0); });
+    Object.entries(state.allocations).forEach(([dayIndex, day]) => {
+      if(dayFilter && !dayFilter(Number(dayIndex))) return;
+      Object.values(day).forEach(sqMap => {
+        Object.entries(sqMap).forEach(([sqId, stId]) => {
+          if(counts[sqId] && stId in counts[sqId]) counts[sqId][stId]++;
+        });
+      });
+    });
+    return counts;
+  }
+
+  function buildUsageTable(counts){
+    const table = document.createElement('table');
+    table.className = 'overview';
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+    const thClass = document.createElement('th'); thClass.className = 'class-col'; thClass.textContent = 'Squad';
+    trh.appendChild(thClass);
+    state.stations.forEach(st => { const th = document.createElement('th'); th.textContent = st.name; trh.appendChild(th); });
+    const thTotal = document.createElement('th'); thTotal.textContent = 'Total Blocks';
+    trh.appendChild(thTotal);
+    thead.appendChild(trh);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    state.squads.forEach(s => {
+      const tr = document.createElement('tr');
+      const tdClass = document.createElement('td');
+      tdClass.innerHTML = `<div class="class-cell"><span class="swatch" style="background:${s.color}"></span>${s.name}</div>`;
+      tr.appendChild(tdClass);
+      let total = 0;
+      state.stations.forEach(st => {
+        const n = counts[s.id][st.id];
+        total += n;
+        const td = document.createElement('td');
+        td.textContent = n;
+        tr.appendChild(td);
+      });
+      const tdTotal = document.createElement('td');
+      tdTotal.className = 'total-col'; tdTotal.textContent = total;
+      tr.appendChild(tdTotal);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    return table;
+  }
+
+  function renderOverview(){
+    const el = document.getElementById('overviewTable');
+    if(state.squads.length === 0 || state.stations.length === 0){
+      el.innerHTML = '<p class="empty-note">Add squads and stations to see usage.</p>';
+      return;
+    }
+    el.innerHTML = '';
+
+    const sections = [
+      ['Week 1', d => d < 7],
+      ['Week 2', d => d >= 7],
+      ['Fortnight Total', null],
+    ];
+    sections.forEach(([label, filter]) => {
+      const title = document.createElement('div');
+      title.className = 'roster-day-title';
+      title.textContent = label;
+      el.appendChild(title);
+      el.appendChild(buildUsageTable(computeUsageCounts(filter)));
+    });
+  }
+
+  // ===================== master render =====================
+  function renderAll(){
+    updateMainTitle();
+    document.getElementById('rotationLengthInput').value = state.rotationLength;
+    ['rlLabel1','rlLabel2','rlLabel3'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.textContent = state.rotationLength;
+    });
+    renderLevelList();
+    renderSquadList();
+    renderStationList();
+    renderCoachList();
+    renderConflictMatrix();
+    renderScheduleList();
+    renderDayPickerRota();
+    renderRotaBoard();
+    renderRoster();
+    renderCoachRosters();
+    renderCoachLoad();
+    renderOverview();
+  }
+
+  switchTab('setup');
+  loadState();
+})();
+</script>
+</body>
+</html>
