@@ -314,7 +314,8 @@
   <div class="tab-panel" id="tab-overview">
     <div class="panel">
       <p class="panel-title">Fortnightly Station Usage</p>
-      <p class="panel-desc">Total <span id="rlLabel3">15</span>-minute blocks each squad has been allocated on each station, broken out by Week 1 and Week 2 so you can check the split is even across the cycle, plus a fortnight total.</p>
+      <p class="panel-desc">Total <span id="rlLabel3">15</span>-minute blocks each squad has been allocated on each station, broken out by Week 1 and Week 2 so you can check the split is even across the cycle, plus a fortnight total. Stations with no usage for the selected squads are hidden.</p>
+      <div id="overviewSquadFilter" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;"></div>
       <div id="overviewTable"></div>
     </div>
   </div>
@@ -330,7 +331,7 @@
   const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const PALETTE = ['#B5292E','#1F7A5C','#C9A227','#2A5CAA','#7A4FA3','#B5602E','#3E8E8E','#8C3F63','#4B7B2A','#A6437A'];
   const STORAGE_KEY = 'gym-scheduler-state-v4';
-  const APP_VERSION = 'v1.5';
+  const APP_VERSION = 'v1.7';
   document.getElementById('versionTag').textContent = '· ' + APP_VERSION;
 
   function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -528,6 +529,7 @@
       setStatus('Starting fresh — nothing saved yet', false);
     }
     migrateState();
+    pruneStaleAllocations();
     renderAll();
   }
   async function saveState(){
@@ -548,7 +550,7 @@
     document.getElementById('statusChipText').textContent = text;
     document.getElementById('statusChip').querySelector('.dot').style.background = busy ? 'var(--gold)' : 'var(--spring)';
   }
-  function commit(){ renderAll(); saveState(); }
+  function commit(){ pruneStaleAllocations(); renderAll(); saveState(); }
 
   function showFlash(msg){
     const el = document.getElementById('flash');
@@ -1121,6 +1123,25 @@
     return state.squads.filter(s => ((state.schedule[s.id]||{})[weekday]||[]).length > 0);
   }
 
+  // If a session's time/duration shrinks (or a squad/day is turned off), old
+  // allocations at ticks the squad no longer occupies would otherwise linger and
+  // get counted in capacity/conflict checks and usage totals. Clear them out.
+  function pruneStaleAllocations(){
+    Object.keys(state.allocations).forEach(dayIndexStr => {
+      const dayIndex = Number(dayIndexStr);
+      const day = state.allocations[dayIndexStr];
+      Object.keys(day).forEach(tickStr => {
+        const tick = Number(tickStr);
+        const sqMap = day[tickStr];
+        Object.keys(sqMap).forEach(sqId => {
+          if(!squadInSessionAtTick(sqId, dayIndex, tick)) delete sqMap[sqId];
+        });
+        if(Object.keys(sqMap).length === 0) delete day[tickStr];
+      });
+      if(Object.keys(day).length === 0) delete state.allocations[dayIndexStr];
+    });
+  }
+
   // Counts how many OTHER sessions (any squad) this coach already runs on the given
   // weekday that overlap the given time range - used to enforce max concurrent squads.
   function coachOverlapCount(coachId, weekday, startMin, endMin, excludeSessionId){
@@ -1520,27 +1541,35 @@
     return counts;
   }
 
-  function buildUsageTable(counts){
+  function buildUsageTable(counts, activeSquads){
+    const activeStations = state.stations.filter(st => activeSquads.some(s => counts[s.id][st.id] > 0));
+    if(activeStations.length === 0){
+      const p = document.createElement('p');
+      p.className = 'empty-note';
+      p.textContent = 'No station usage yet for the selected squad(s).';
+      return p;
+    }
+
     const table = document.createElement('table');
     table.className = 'overview';
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
     const thClass = document.createElement('th'); thClass.className = 'class-col'; thClass.textContent = 'Squad';
     trh.appendChild(thClass);
-    state.stations.forEach(st => { const th = document.createElement('th'); th.textContent = st.name; trh.appendChild(th); });
+    activeStations.forEach(st => { const th = document.createElement('th'); th.textContent = st.name; trh.appendChild(th); });
     const thTotal = document.createElement('th'); thTotal.textContent = 'Total Blocks';
     trh.appendChild(thTotal);
     thead.appendChild(trh);
     table.appendChild(thead);
 
     const tbody = document.createElement('tbody');
-    state.squads.forEach(s => {
+    activeSquads.forEach(s => {
       const tr = document.createElement('tr');
       const tdClass = document.createElement('td');
       tdClass.innerHTML = `<div class="class-cell"><span class="swatch" style="background:${s.color}"></span>${s.name}</div>`;
       tr.appendChild(tdClass);
       let total = 0;
-      state.stations.forEach(st => {
+      activeStations.forEach(st => {
         const n = counts[s.id][st.id];
         total += n;
         const td = document.createElement('td');
@@ -1556,13 +1585,44 @@
     return table;
   }
 
+  let overviewHiddenSquads = new Set();
+  function renderOverviewFilter(){
+    const el = document.getElementById('overviewSquadFilter');
+    el.innerHTML = '';
+    state.squads.forEach(s => {
+      const label = document.createElement('label');
+      label.style.display = 'flex'; label.style.alignItems = 'center'; label.style.gap = '6px';
+      label.style.fontFamily = "'Inter',sans-serif"; label.style.fontSize = '13px'; label.style.fontWeight = '600';
+      label.style.cursor = 'pointer';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !overviewHiddenSquads.has(s.id);
+      cb.addEventListener('change', () => {
+        if(cb.checked) overviewHiddenSquads.delete(s.id); else overviewHiddenSquads.add(s.id);
+        renderOverview();
+      });
+      label.appendChild(cb);
+      const swatch = document.createElement('span');
+      swatch.className = 'swatch'; swatch.style.background = s.color;
+      label.appendChild(swatch);
+      label.appendChild(document.createTextNode(s.name));
+      el.appendChild(label);
+    });
+  }
+
   function renderOverview(){
+    renderOverviewFilter();
     const el = document.getElementById('overviewTable');
     if(state.squads.length === 0 || state.stations.length === 0){
       el.innerHTML = '<p class="empty-note">Add squads and stations to see usage.</p>';
       return;
     }
+    const activeSquads = state.squads.filter(s => !overviewHiddenSquads.has(s.id));
     el.innerHTML = '';
+    if(activeSquads.length === 0){
+      el.innerHTML = '<p class="empty-note">Select at least one squad above to see usage.</p>';
+      return;
+    }
 
     const sections = [
       ['Week 1', d => d < 7],
@@ -1574,7 +1634,7 @@
       title.className = 'roster-day-title';
       title.textContent = label;
       el.appendChild(title);
-      el.appendChild(buildUsageTable(computeUsageCounts(filter)));
+      el.appendChild(buildUsageTable(computeUsageCounts(filter), activeSquads));
     });
   }
 
