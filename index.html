@@ -31,6 +31,20 @@
   .roster-switch select{font-family:'Inter',sans-serif;font-weight:600;font-size:12px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;max-width:160px;}
   .roster-switch select option{color:#12213D;}
   .roster-switch .header-btn.ghost{padding:6px 10px;font-size:10px;}
+  .roster-manage-wrap{position:relative;display:inline-block;}
+  .roster-manage-panel{position:absolute;top:32px;right:0;z-index:30;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;box-shadow:0 10px 28px rgba(0,0,0,.25);width:340px;max-height:420px;overflow-y:auto;display:none;}
+  .roster-manage-panel.open{display:block;}
+  .roster-manage-title{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.04em;font-size:12px;font-weight:600;color:var(--ink);margin:0 0 10px;}
+  .roster-row{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid var(--line);}
+  .roster-row:last-child{border-bottom:none;}
+  .roster-row-name{flex:1;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .roster-row.is-hidden .roster-row-name{color:var(--slate);font-style:italic;}
+  .roster-row.is-current .roster-row-name::after{content:' (current)';font-weight:500;color:var(--slate);font-style:normal;}
+  .roster-row-btn{font-family:'JetBrains Mono',monospace;font-size:10px;background:var(--chalk);border:1px solid var(--line);border-radius:5px;padding:5px 7px;cursor:pointer;color:var(--ink);white-space:nowrap;}
+  .roster-row-btn:hover{border-color:var(--ink);}
+  .roster-row-btn.danger{color:#B5292E;border-color:#E8C7C7;}
+  .roster-row-btn.danger:hover{background:#FBEAEA;}
+  .roster-manage-show-hidden{display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);margin-top:10px;padding-top:10px;border-top:1px solid var(--line);cursor:pointer;}
   .status-chip{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:100px;padding:6px 14px;display:flex;align-items:center;gap:8px;white-space:nowrap;}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--spring);}
   .header-btn{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.03em;background:var(--gold);color:var(--ink);border:none;border-radius:6px;padding:7px 14px;cursor:pointer;font-weight:700;}
@@ -242,6 +256,16 @@
       <label for="rosterSelect">Roster</label>
       <select id="rosterSelect"></select>
       <button type="button" class="header-btn ghost" id="newRosterBtn">+ New</button>
+      <div class="roster-manage-wrap">
+        <button type="button" class="header-btn ghost" id="manageRostersBtn">Manage ▾</button>
+        <div class="roster-manage-panel" id="rosterManagePanel">
+          <p class="roster-manage-title">Manage rosters</p>
+          <div id="rosterManageList"></div>
+          <label class="roster-manage-show-hidden">
+            <input type="checkbox" id="showHiddenRostersCb"> Show hidden rosters
+          </label>
+        </div>
+      </div>
     </div>
     <div class="status-chip" id="statusChip"><span class="dot"></span><span id="statusChipText">Loading…</span></div>
   </div>
@@ -568,10 +592,17 @@
     firebase.database().ref('rosterIndex/' + rosterId).update(payload).catch(() => {});
   }
 
+  let lastRosterIndexData = {};
+  let showHiddenRosters = false;
+
   function renderRosterSwitcher(indexData){
+    lastRosterIndexData = indexData || {};
     const sel = document.getElementById('rosterSelect');
     if(!sel) return;
-    const entries = Object.entries(indexData || {});
+    // hidden rosters are archived out of the everyday switcher, but the one
+    // you're currently connected to always shows so you're never confused
+    // about what you're looking at
+    const entries = Object.entries(lastRosterIndexData).filter(([id, info]) => !info.hidden || id === currentRosterId);
     if(!entries.some(([id]) => id === currentRosterId)){
       entries.push([currentRosterId, { name: currentRosterId }]);
     }
@@ -583,6 +614,117 @@
       opt.textContent = (info && info.name) ? info.name : id;
       if(id === currentRosterId) opt.selected = true;
       sel.appendChild(opt);
+    });
+    renderRosterManagePanel();
+  }
+
+  // Guarantees a unique roster id by appending -2, -3, etc. if the slug of a
+  // chosen name collides with a roster that already exists.
+  function uniqueRosterId(baseId){
+    if(!lastRosterIndexData[baseId]) return baseId;
+    let n = 2;
+    while(lastRosterIndexData[baseId + '-' + n]) n++;
+    return baseId + '-' + n;
+  }
+
+  function renderRosterManagePanel(){
+    const listEl = document.getElementById('rosterManageList');
+    if(!listEl) return;
+    const entries = Object.entries(lastRosterIndexData);
+    if(!entries.some(([id]) => id === currentRosterId)){
+      entries.push([currentRosterId, { name: currentRosterId }]);
+    }
+    entries.sort((a,b) => (a[1].name||a[0]).localeCompare(b[1].name||b[0]));
+
+    listEl.innerHTML = '';
+    entries.forEach(([id, info]) => {
+      const hidden = !!(info && info.hidden);
+      if(hidden && !showHiddenRosters && id !== currentRosterId) return;
+
+      const row = document.createElement('div');
+      row.className = 'roster-row' + (hidden ? ' is-hidden' : '') + (id === currentRosterId ? ' is-current' : '');
+
+      const nameEl = document.createElement('span');
+      nameEl.className = 'roster-row-name';
+      nameEl.textContent = (info && info.name) ? info.name : id;
+      nameEl.title = (info && info.name) ? info.name : id;
+      row.appendChild(nameEl);
+
+      const renameBtn = document.createElement('button');
+      renameBtn.type = 'button'; renameBtn.className = 'roster-row-btn'; renameBtn.textContent = 'Rename';
+      renameBtn.addEventListener('click', () => renameRoster(id, (info && info.name) || id));
+      row.appendChild(renameBtn);
+
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button'; copyBtn.className = 'roster-row-btn'; copyBtn.textContent = 'Copy';
+      copyBtn.addEventListener('click', () => copyRoster(id, (info && info.name) || id));
+      row.appendChild(copyBtn);
+
+      const hideBtn = document.createElement('button');
+      hideBtn.type = 'button'; hideBtn.className = 'roster-row-btn'; hideBtn.textContent = hidden ? 'Unhide' : 'Hide';
+      hideBtn.addEventListener('click', () => setRosterHidden(id, !hidden));
+      row.appendChild(hideBtn);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button'; deleteBtn.className = 'roster-row-btn danger'; deleteBtn.textContent = 'Delete';
+      deleteBtn.addEventListener('click', () => deleteRoster(id, (info && info.name) || id));
+      row.appendChild(deleteBtn);
+
+      listEl.appendChild(row);
+    });
+
+    if(listEl.children.length === 0){
+      listEl.innerHTML = '<p class="empty-note" style="margin:4px 0;">No rosters to show.</p>';
+    }
+  }
+
+  function renameRoster(rosterId, currentName){
+    const name = window.prompt('New name for "' + currentName + '":', currentName);
+    if(!name || !name.trim() || name.trim() === currentName) return;
+    firebase.database().ref('rosterIndex/' + rosterId).update({ name: name.trim() }).catch(() => {
+      showFlash('Rename failed — check your connection.');
+    });
+  }
+
+  async function copyRoster(sourceId, sourceName){
+    const name = window.prompt('Name for the copy of "' + sourceName + '":', sourceName + ' copy');
+    if(!name || !name.trim()) return;
+    const newId = uniqueRosterId(slugifyRosterName(name));
+    setStatus('Copying roster…', true);
+    try{
+      const snap = await firebase.database().ref('rosters/' + sourceId).once('value');
+      const data = snap.val();
+      if(!data){ showFlash('Could not read that roster to copy it.'); return; }
+      const copy = JSON.parse(JSON.stringify(data));
+      copy._rev = 0;
+      await firebase.database().ref('rosters/' + newId).set(copy);
+      await firebase.database().ref('rosterIndex/' + newId).set({ name: name.trim(), updatedAt: Date.now() });
+      connectToRoster(newId);
+    }catch(e){
+      showFlash('Copy failed — check your connection.');
+    }
+  }
+
+  function setRosterHidden(rosterId, hidden){
+    firebase.database().ref('rosterIndex/' + rosterId).update({ hidden }).catch(() => {
+      showFlash('That change failed — check your connection.');
+    });
+  }
+
+  function deleteRoster(rosterId, rosterName){
+    const ok = window.confirm('Permanently delete "' + rosterName + '" for everyone? This cannot be undone.');
+    if(!ok) return;
+    const remaining = Object.keys(lastRosterIndexData).filter(id => id !== rosterId && !lastRosterIndexData[id].hidden);
+    Promise.all([
+      firebase.database().ref('rosters/' + rosterId).remove(),
+      firebase.database().ref('rosterIndex/' + rosterId).remove()
+    ]).then(() => {
+      if(rosterId === currentRosterId){
+        const nextId = remaining[0] || 'default';
+        connectToRoster(nextId);
+      }
+    }).catch(() => {
+      showFlash('Delete failed — check your connection.');
     });
   }
 
@@ -939,8 +1081,26 @@
   });
   document.getElementById('newRosterBtn').addEventListener('click', () => {
     const name = window.prompt('Name for the new roster (e.g. a squad, team, or gym):');
-    if(!name) return;
-    connectToRoster(slugifyRosterName(name), name.trim());
+    if(!name || !name.trim()) return;
+    const newId = uniqueRosterId(slugifyRosterName(name));
+    connectToRoster(newId, name.trim());
+  });
+
+  const manageRostersBtn = document.getElementById('manageRostersBtn');
+  const rosterManagePanel = document.getElementById('rosterManagePanel');
+  manageRostersBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    rosterManagePanel.classList.toggle('open');
+    if(rosterManagePanel.classList.contains('open')) renderRosterManagePanel();
+  });
+  document.addEventListener('click', (e) => {
+    if(!rosterManagePanel.contains(e.target) && e.target !== manageRostersBtn){
+      rosterManagePanel.classList.remove('open');
+    }
+  });
+  document.getElementById('showHiddenRostersCb').addEventListener('change', (e) => {
+    showHiddenRosters = e.target.checked;
+    renderRosterManagePanel();
   });
 
   async function loadState(){
