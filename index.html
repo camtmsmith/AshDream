@@ -25,6 +25,12 @@
   .board-header-inner{max-width:1280px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;}
   .header-title-line{font-family:'Oswald',sans-serif;font-weight:600;font-size:14px;letter-spacing:.03em;text-transform:uppercase;margin:0;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .header-title-line .version{font-family:'JetBrains Mono',monospace;font-size:11px;color:#8A93AC;text-transform:none;margin-left:8px;letter-spacing:.05em;}
+  .shared-badge{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--ink);background:var(--gold);border-radius:100px;padding:6px 14px;white-space:nowrap;}
+  .roster-switch{display:flex;align-items:center;gap:6px;}
+  .roster-switch label{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#AAB3CB;}
+  .roster-switch select{font-family:'Inter',sans-serif;font-weight:600;font-size:12px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;max-width:160px;}
+  .roster-switch select option{color:#12213D;}
+  .roster-switch .header-btn.ghost{padding:6px 10px;font-size:10px;}
   .status-chip{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:100px;padding:6px 14px;display:flex;align-items:center;gap:8px;white-space:nowrap;}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--spring);}
   .header-btn{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.03em;background:var(--gold);color:var(--ink);border:none;border-radius:6px;padding:7px 14px;cursor:pointer;font-weight:700;}
@@ -231,6 +237,12 @@
 <div class="board-header">
   <div class="board-header-inner">
     <p class="header-title-line"><span id="mainTitle">Gym Org Pro</span><span class="version" id="versionTag">· v1.0</span></p>
+    <span class="shared-badge" id="sharedBadge" style="display:none;" title="Everyone who opens this link sees and can edit the same schedule.">⚠ SHARED — visible to anyone with this link</span>
+    <div class="roster-switch" id="rosterSwitch" style="display:none;">
+      <label for="rosterSelect">Roster</label>
+      <select id="rosterSelect"></select>
+      <button type="button" class="header-btn ghost" id="newRosterBtn">+ New</button>
+    </div>
     <div class="status-chip" id="statusChip"><span class="dot"></span><span id="statusChipText">Loading…</span></div>
   </div>
 </div>
@@ -453,6 +465,165 @@
   const STORAGE_KEY = 'gym-scheduler-state-v4';
   const APP_VERSION = 'v1.9';
   document.getElementById('versionTag').textContent = ' - ' + APP_VERSION.toUpperCase();
+
+  // ---------------- optional: live multi-user sync (Firebase Realtime Database) ----------------
+  // This app normally saves to Claude.ai's storage, or to this one browser's
+  // localStorage if opened outside Claude.ai (e.g. hosted on GitHub Pages) —
+  // neither of those is shared between different people's computers.
+  //
+  // To let several people edit the SAME schedule at once, from different
+  // computers, fill in the six values below with your own free Firebase
+  // project's config:
+  //   1. Go to https://console.firebase.google.com → Add project (free, no card).
+  //   2. Build → Realtime Database → Create Database → start in test mode.
+  //   3. Project settings (gear icon) → General → Your apps → Web app (</>) →
+  //      copy the "firebaseConfig" object it gives you into FIREBASE_CONFIG below.
+  //   4. Re-upload/redeploy this file. The status chip in the header will show
+  //      "Synced" once it's connected.
+  // Leave every value blank to keep the current single-browser behavior.
+  //
+  // Multiple rosters: each roster is its own document under /rosters/{id} in
+  // the database, so one Firebase project can hold several independent,
+  // switchable schedules (e.g. different squads' programs, or different
+  // client gyms) instead of everyone sharing one blob.
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyByqjL6BUxJe0o7JRwQf_uhy6lu0Y6fPu8",
+    authDomain: "gymscheduler-a3e6c.firebaseapp.com",
+    projectId: "gymscheduler-a3e6c",
+    storageBucket: "gymscheduler-a3e6c.firebasestorage.app",
+    messagingSenderId: "741581612021",
+    appId: "1:741581612021:web:a746051f6b4cb5e185b6bc",
+    measurementId: "G-032LC7HVSF"
+  };
+  const FIREBASE_ENABLED = !!(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.databaseURL);
+  const LAST_ROSTER_KEY = 'gym-scheduler-last-roster';
+  let fbRef = null;
+  let firebaseReady = false;
+  let firebaseSdkReady = false;
+  let lastPushedRev = 0;
+  let pushTimer = null;
+  let currentRosterId = 'default';
+
+  function loadScriptTag(src){
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('Failed to load ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  function slugifyRosterName(name){
+    return String(name).trim().toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || 'roster';
+  }
+
+  // Loads the Firebase SDK and connects the app to Firebase generally — this
+  // does NOT pick a roster yet, connectToRoster() does that afterwards.
+  async function initFirebaseSync(){
+    if(!FIREBASE_ENABLED) return false;
+    if(firebaseSdkReady) return true;
+    try{
+      await loadScriptTag('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+      await loadScriptTag('https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js');
+      firebase.initializeApp(FIREBASE_CONFIG);
+      firebaseSdkReady = true;
+      return true;
+    }catch(e){
+      console.error('Firebase sync unavailable, falling back to local storage:', e);
+      return false;
+    }
+  }
+
+  // Debounced push so a burst of quick edits (e.g. dragging rows) sends one
+  // write instead of several. Tags the write with a revision so our own echo
+  // coming back through the listener doesn't trigger a needless re-render.
+  function pushStateToFirebase(){
+    if(!fbRef) return;
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(async () => {
+      setStatus('Saving…', true);
+      lastPushedRev = Date.now();
+      state._rev = lastPushedRev;
+      try{
+        await fbRef.set(state);
+        touchRosterIndexEntry(currentRosterId);
+      }catch(e){
+        setStatus('Save failed — check your connection', false);
+      }
+    }, 300);
+  }
+
+  // /rosterIndex holds a lightweight {name, updatedAt} entry per roster so the
+  // switcher dropdown can list every roster anyone has created — shared, not
+  // just the rosters this one browser happens to have visited before.
+  function touchRosterIndexEntry(rosterId, displayName){
+    if(!firebaseSdkReady) return;
+    const payload = { updatedAt: Date.now() };
+    if(displayName) payload.name = displayName; // omit to avoid clobbering an existing name on routine saves
+    firebase.database().ref('rosterIndex/' + rosterId).update(payload).catch(() => {});
+  }
+
+  function renderRosterSwitcher(indexData){
+    const sel = document.getElementById('rosterSelect');
+    if(!sel) return;
+    const entries = Object.entries(indexData || {});
+    if(!entries.some(([id]) => id === currentRosterId)){
+      entries.push([currentRosterId, { name: currentRosterId }]);
+    }
+    entries.sort((a,b) => (a[1].name||a[0]).localeCompare(b[1].name||b[0]));
+    sel.innerHTML = '';
+    entries.forEach(([id, info]) => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = (info && info.name) ? info.name : id;
+      if(id === currentRosterId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
+  // Detaches from whichever roster we were on (if any) and attaches to a new
+  // one, seeding it with the current default demo data if it doesn't exist
+  // yet — which is also how a brand-new roster gets "created" here.
+  function connectToRoster(rosterId, displayName){
+    if(fbRef) fbRef.off();
+    currentRosterId = rosterId;
+    lastPushedRev = 0; // this rev tracks "my last write to the CURRENTLY connected roster" —
+                        // reset on every switch so a stale value can't false-match the new
+                        // roster's own stored _rev and cause its data to be skipped on load.
+    localStorage.setItem(LAST_ROSTER_KEY, rosterId);
+    fbRef = firebase.database().ref('rosters/' + rosterId);
+    setStatus('Connecting to "' + rosterId + '"…', true);
+
+    fbRef.on('value', (snap) => {
+      const remote = snap.val();
+      if(remote && remote._rev === lastPushedRev){
+        setStatus('Synced — shared with everyone on this roster', false);
+        return;
+      }
+      if(remote && Array.isArray(remote.squads)){
+        state = remote;
+      } else if(!remote){
+        state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+      }
+      migrateState();
+      pruneStaleAllocations();
+      renderAll();
+      setStatus('Synced — shared with everyone on this roster', false);
+      if(!remote){
+        pushStateToFirebase(); // brand new roster — seed it
+        touchRosterIndexEntry(rosterId, displayName || rosterId);
+      } else {
+        touchRosterIndexEntry(rosterId);
+      }
+    }, () => {
+      setStatus('Sync error — check the Firebase config/rules', false);
+    });
+  }
+
 
   function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
@@ -762,21 +933,53 @@
     if(!Array.isArray(state.squadExclusions)) state.squadExclusions = [];
   }
 
+  document.getElementById('rosterSelect').addEventListener('change', (e) => {
+    if(e.target.value && e.target.value !== currentRosterId) connectToRoster(e.target.value);
+  });
+  document.getElementById('newRosterBtn').addEventListener('click', () => {
+    const name = window.prompt('Name for the new roster (e.g. a squad, team, or gym):');
+    if(!name) return;
+    connectToRoster(slugifyRosterName(name), name.trim());
+  });
+
   async function loadState(){
+    firebaseReady = await initFirebaseSync();
+
+    if(firebaseReady){
+      setSharedBadge(true);
+      document.getElementById('rosterSwitch').style.display = '';
+
+      firebase.database().ref('.info/connected').on('value', (snap) => {
+        if(!snap.val()) setStatus('Offline — reconnecting…', true);
+      });
+      // populate the roster switcher live, shared across everyone using this project
+      firebase.database().ref('rosterIndex').on('value', (snap) => {
+        renderRosterSwitcher(snap.val());
+      });
+
+      const savedRosterId = localStorage.getItem(LAST_ROSTER_KEY);
+      connectToRoster(savedRosterId || currentRosterId);
+      return; // connectToRoster's listener performs the load and renderAll
+    }
+
     try{
       if(hasHostStorage()){
-        const res = await window.storage.get(STORAGE_KEY, false);
+        // shared:true means every person who opens this artifact reads and
+        // writes the SAME data — see the "SHARED" badge this turns on below.
+        const res = await window.storage.get(STORAGE_KEY, true);
         if(res && res.value){
           const parsed = JSON.parse(res.value);
           if(parsed && Array.isArray(parsed.squads)) state = parsed;
         }
-        setStatus('Saved to your Claude.ai profile', false);
+        setSharedBadge(true);
+        setStatus('Shared with everyone on this Claude.ai link', false);
       } else {
         const raw = localStorage.getItem(STORAGE_KEY);
         if(raw){
           const parsed = JSON.parse(raw);
           if(parsed && Array.isArray(parsed.squads)) state = parsed;
         }
+        setSharedBadge(false);
         setStatus('Saved to this browser', false);
       }
     }catch(e){
@@ -787,11 +990,15 @@
     renderAll();
   }
   async function saveState(){
+    if(firebaseReady){
+      pushStateToFirebase();
+      return;
+    }
     try{
       setStatus('Saving…', true);
       if(hasHostStorage()){
-        await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
-        setStatus('Saved to your Claude.ai profile', false);
+        await window.storage.set(STORAGE_KEY, JSON.stringify(state), true);
+        setStatus('Shared with everyone on this Claude.ai link', false);
       } else {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         setStatus('Saved to this browser', false);
@@ -803,6 +1010,9 @@
   function setStatus(text, busy){
     document.getElementById('statusChipText').textContent = text;
     document.getElementById('statusChip').querySelector('.dot').style.background = busy ? 'var(--gold)' : 'var(--spring)';
+  }
+  function setSharedBadge(visible){
+    document.getElementById('sharedBadge').style.display = visible ? '' : 'none';
   }
   function commit(){ pruneStaleAllocations(); renderAll(); saveState(); }
 
