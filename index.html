@@ -274,6 +274,7 @@
       <button type="button" class="subnav-btn" data-target="panel-stations">Gym Stations</button>
       <button type="button" class="subnav-btn" data-target="panel-coaches">Coaches</button>
       <button type="button" class="subnav-btn" data-target="panel-conflicts">Station Conflicts</button>
+      <button type="button" class="subnav-btn" data-target="panel-capacity-exceptions">Capacity Exceptions</button>
     </div>
 
     <div class="panel" id="panel-program-details">
@@ -334,6 +335,14 @@
       <p class="panel-desc">Mark pairs of stations that can never be in use at the same time (shared mats, spotters, runway space, etc). Click a cell to toggle.</p>
       <div id="conflictMatrix"></div>
       <div class="conflict-list" id="conflictSummary"></div>
+    </div>
+
+    <div class="panel" id="panel-capacity-exceptions">
+      <p class="panel-title">Capacity Exceptions</p>
+      <p class="panel-desc">For a station with capacity above 1, mark squad pairs that should never share it at the same time even though there's room (age gap, safety, supervision, etc). Pick a station below, then click a cell to toggle.</p>
+      <div class="squad-filter-actions" id="capacityExceptionStationPicker" style="margin-bottom:14px;flex-wrap:wrap;"></div>
+      <div id="capacityExceptionMatrix"></div>
+      <div class="conflict-list" id="capacityExceptionSummary"></div>
     </div>
   </div>
 
@@ -442,7 +451,7 @@
   const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const PALETTE = ['#B5292E','#1F7A5C','#C9A227','#2A5CAA','#7A4FA3','#B5602E','#3E8E8E','#8C3F63','#4B7B2A','#A6437A'];
   const STORAGE_KEY = 'gym-scheduler-state-v4';
-  const APP_VERSION = 'v1.8';
+  const APP_VERSION = 'v1.9';
   document.getElementById('versionTag').textContent = ' - ' + APP_VERSION.toUpperCase();
 
   function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -624,6 +633,12 @@
     return h12 + (m? ':'+String(m).padStart(2,'0') : ':00') + ' ' + ampm;
   }
   function pairKey(a,b){ return [a,b].sort().join('|'); }
+  // Per-station squad-pair exceptions: even when a station has spare capacity,
+  // these two specific squads should never be scheduled onto it together.
+  function exclusionKey(stationId, squadA, squadB){ return stationId + '::' + pairKey(squadA, squadB); }
+  function isSquadExcludedFromSharing(stationId, squadA, squadB){
+    return state.squadExclusions.includes(exclusionKey(stationId, squadA, squadB));
+  }
   function levelRank(levelId){
     const i = state.coachLevels.findIndex(l => l.id === levelId);
     return i === -1 ? 0 : i;
@@ -670,6 +685,10 @@
       {id:'co3', name:'Coach 3', levelId:'lvl3', maxConcurrent:2},
     ],
     conflicts: ['st2|st5'], // demo: Pommel Horse & Parallel Bars share spotting mats
+    // Squad-pair exceptions to a station's capacity: even if the station has room,
+    // these two squads should never be scheduled onto it at the same time. Keyed
+    // "stationId::sortedSquadA|sortedSquadB". Only meaningful for capacity > 1 stations.
+    squadExclusions: [],
     // Session times/coaches recur the same every week (0=Mon..6=Sun). Each day maps
     // to an ARRAY of sessions, so a squad can have separate Morning/Afternoon blocks.
     schedule: {
@@ -739,6 +758,8 @@
         });
       });
     });
+    if(!Array.isArray(state.conflicts)) state.conflicts = [];
+    if(!Array.isArray(state.squadExclusions)) state.squadExclusions = [];
   }
 
   async function loadState(){
@@ -912,6 +933,7 @@
     Object.values(state.allocations).forEach(day => {
       Object.values(day).forEach(sqMap => { delete sqMap[squadId]; });
     });
+    state.squadExclusions = state.squadExclusions.filter(k => !k.split('::')[1].split('|').includes(squadId));
   }
   function removeStationEverywhere(stationId){
     state.stations = state.stations.filter(s => s.id !== stationId);
@@ -921,6 +943,7 @@
         Object.keys(sqMap).forEach(sqId => { if(sqMap[sqId] === stationId) delete sqMap[sqId]; });
       });
     });
+    state.squadExclusions = state.squadExclusions.filter(k => k.split('::')[0] !== stationId);
   }
   function removeCoachEverywhere(coachId){
     state.coaches = state.coaches.filter(c => c.id !== coachId);
@@ -1189,6 +1212,95 @@
         span.style.textShadow = '0 1px 2px rgba(0,0,0,.5)';
         span.textContent = sa.name + ' ⇄ ' + sb.name;
         summary.appendChild(span);
+      }
+    });
+  }
+
+  // ===================== SETUP: Capacity exceptions =====================
+  let capacityExceptionStationId = null;
+  function renderCapacityExceptions(){
+    const pickerEl = document.getElementById('capacityExceptionStationPicker');
+    const matrixEl = document.getElementById('capacityExceptionMatrix');
+    const summaryEl = document.getElementById('capacityExceptionSummary');
+    pickerEl.innerHTML = ''; matrixEl.innerHTML = ''; summaryEl.innerHTML = '';
+
+    const multiCapStations = state.stations.filter(st => (st.capacity||1) > 1);
+    if(multiCapStations.length === 0){
+      matrixEl.innerHTML = '<p class="empty-note">No stations have capacity above 1 yet — exceptions only matter where a station can already host more than one squad. Set a station\'s capacity in Gym Stations first.</p>';
+      return;
+    }
+    if(!capacityExceptionStationId || !multiCapStations.some(st => st.id === capacityExceptionStationId)){
+      capacityExceptionStationId = multiCapStations[0].id;
+    }
+
+    multiCapStations.forEach(st => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'subnav-btn' + (capacityExceptionStationId === st.id ? ' active' : '');
+      btn.textContent = `${st.name} (cap ${st.capacity})`;
+      btn.addEventListener('click', () => { capacityExceptionStationId = st.id; renderCapacityExceptions(); });
+      pickerEl.appendChild(btn);
+    });
+
+    if(state.squads.length < 2){
+      matrixEl.innerHTML = '<p class="empty-note">Add at least two squads to set exceptions.</p>';
+      return;
+    }
+
+    const station = state.stations.find(st => st.id === capacityExceptionStationId);
+    const table = document.createElement('table');
+    table.className = 'matrix';
+    const thead = document.createElement('tr');
+    thead.appendChild(document.createElement('th'));
+    state.squads.forEach(sq => { const th = document.createElement('th'); th.textContent = sq.name; thead.appendChild(th); });
+    table.appendChild(thead);
+
+    state.squads.forEach(rowSq => {
+      const tr = document.createElement('tr');
+      const rh = document.createElement('th');
+      rh.className = 'rowhead'; rh.textContent = rowSq.name;
+      tr.appendChild(rh);
+      state.squads.forEach(colSq => {
+        const td = document.createElement('td');
+        const cell = document.createElement('div');
+        if(rowSq.id === colSq.id){
+          cell.className = 'mx-cell disabled';
+        } else {
+          const key = exclusionKey(capacityExceptionStationId, rowSq.id, colSq.id);
+          const active = state.squadExclusions.includes(key);
+          cell.className = 'mx-cell' + (active ? ' conflict' : '');
+          if(active){
+            cell.style.background = `linear-gradient(90deg, ${rowSq.color} 50%, ${colSq.color} 50%)`;
+            cell.style.border = '2px solid var(--ink)';
+          }
+          cell.title = `${rowSq.name} × ${colSq.name} on ${station.name}`;
+          cell.addEventListener('click', () => {
+            const idx = state.squadExclusions.indexOf(key);
+            if(idx >= 0) state.squadExclusions.splice(idx,1); else state.squadExclusions.push(key);
+            commit();
+          });
+        }
+        td.appendChild(cell);
+        tr.appendChild(td);
+      });
+      table.appendChild(tr);
+    });
+    const matrixScroll = document.createElement('div');
+    matrixScroll.className = 'rota-scroll';
+    matrixScroll.appendChild(table);
+    matrixEl.appendChild(matrixScroll);
+
+    const prefix = capacityExceptionStationId + '::';
+    state.squadExclusions.filter(k => k.startsWith(prefix)).forEach(key => {
+      const [a,b] = key.slice(prefix.length).split('|');
+      const sa = state.squads.find(s=>s.id===a), sb = state.squads.find(s=>s.id===b);
+      if(sa && sb){
+        const span = document.createElement('span');
+        span.style.background = `linear-gradient(90deg, ${sa.color} 50%, ${sb.color} 50%)`;
+        span.style.color = '#fff';
+        span.style.textShadow = '0 1px 2px rgba(0,0,0,.5)';
+        span.textContent = `${sa.name} ⇄ ${sb.name} on ${station.name}`;
+        summaryEl.appendChild(span);
       }
     });
   }
@@ -1561,9 +1673,16 @@
     state.stations.forEach(st => {
       const opt = document.createElement('option');
       const cap = st.capacity || 1;
-      const used = Object.keys(dayAllocsForOptions).filter(sqId => sqId !== squad.id && dayAllocsForOptions[sqId] === st.id).length;
+      const occupantIdsForOpt = Object.keys(dayAllocsForOptions).filter(sqId => sqId !== squad.id && dayAllocsForOptions[sqId] === st.id);
+      const used = occupantIdsForOpt.length;
+      const excludedOccupantId = occupantIdsForOpt.find(sqId => isSquadExcludedFromSharing(st.id, squad.id, sqId));
       opt.value = st.id;
-      opt.textContent = cap > 1 ? `${st.name} (${used}/${cap})` : st.name;
+      let label = cap > 1 ? `${st.name} (${used}/${cap})` : st.name;
+      if(excludedOccupantId){
+        const exSq = state.squads.find(x => x.id === excludedOccupantId);
+        if(exSq) label += ` — excludes ${exSq.name}`;
+      }
+      opt.textContent = label;
       opt.style.backgroundColor = st.color;
       opt.style.color = '#fff';
       if(st.id === currentStationId) opt.selected = true;
@@ -1579,25 +1698,49 @@
         return;
       }
       const dayAllocs = (state.allocations[dayIndex] || {})[tick] || {};
+
+      // Squad-pair exceptions: these occupants MUST be cleared regardless of
+      // capacity, since this squad and that one are never allowed to share this
+      // specific station.
       const occupantIds = Object.keys(dayAllocs).filter(sqId => sqId !== squad.id && dayAllocs[sqId] === newStationId);
+      const exclusionClearIds = occupantIds.filter(sqId => isSquadExcludedFromSharing(newStationId, squad.id, sqId));
+
+      // Same-station capacity: after the mandatory exclusion clears, only free up
+      // enough remaining occupants to fit — e.g. a capacity-2 station already
+      // holding 2 only needs 1 more freed up, not both.
+      const remainingOccupantIds = occupantIds.filter(sqId => !exclusionClearIds.includes(sqId));
       const capacity = newStation.capacity || 1;
-      if(occupantIds.length >= capacity){
-        const names = occupantIds.map(id => (state.squads.find(x=>x.id===id)||{}).name).filter(Boolean).join(', ');
-        showFlash(`${newStation.name} is at capacity (${occupantIds.length}/${capacity}) at this time — already in use by ${names}.`);
-        onBlocked();
-        return;
-      }
-      for(const otherSqId in dayAllocs){
-        if(otherSqId === squad.id) continue;
-        const otherStId = dayAllocs[otherSqId];
-        if(!otherStId) continue;
-        if(state.conflicts.includes(pairKey(newStationId, otherStId))){
-          const otherSt = state.stations.find(x=>x.id===otherStId);
-          const otherSq = state.squads.find(x=>x.id===otherSqId);
-          showFlash(`${newStation.name} conflicts with ${otherSt ? otherSt.name : 'another station'}, already in use by ${otherSq ? otherSq.name : 'a squad'} at this time.`);
-          onBlocked();
-          return;
+      const overflow = Math.max(0, (remainingOccupantIds.length + 1) - capacity);
+      const capacityClearIds = remainingOccupantIds.slice(0, overflow);
+
+      // Conflicting stations: every other squad currently on a station that
+      // conflicts with the newly picked one has to be cleared, not just the first.
+      const conflictClearIds = Object.keys(dayAllocs).filter(sqId => {
+        if(sqId === squad.id || exclusionClearIds.includes(sqId) || capacityClearIds.includes(sqId)) return false;
+        const otherStId = dayAllocs[sqId];
+        return otherStId && state.conflicts.includes(pairKey(newStationId, otherStId));
+      });
+
+      const clearIds = [...new Set([...exclusionClearIds, ...capacityClearIds, ...conflictClearIds])];
+      if(clearIds.length){
+        const clearNames = clearIds.map(id => (state.squads.find(x=>x.id===id)||{}).name).filter(Boolean);
+        const reasons = [];
+        if(exclusionClearIds.length){
+          const exNames = exclusionClearIds.map(id => (state.squads.find(x=>x.id===id)||{}).name).filter(Boolean);
+          reasons.push(`${newStation.name} can't be shared between ${squad.name} and ${exNames.join(', ')} (marked as an exception)`);
         }
+        if(capacityClearIds.length) reasons.push(`${newStation.name} is at capacity (${occupantIds.length}/${capacity})`);
+        if(conflictClearIds.length) reasons.push(`${newStation.name} conflicts with a station in use`);
+        const question = `${reasons.join(' and ')}, currently used by ${clearNames.join(', ')} at this time.\n\nGive ${squad.name} priority and clear ${clearNames.length > 1 ? 'their' : clearNames[0] + "'s"} allocation instead?`;
+        if(window.confirm(question)){
+          clearIds.forEach(id => setAlloc(dayIndex, tick, id, ''));
+          setAlloc(dayIndex, tick, squad.id, newStationId);
+          showFlash(`${squad.name} now has priority on ${newStation.name} — cleared ${clearNames.join(', ')}.`);
+          commit();
+        } else {
+          onBlocked();
+        }
+        return;
       }
       setAlloc(dayIndex, tick, squad.id, newStationId);
       commit();
@@ -2324,6 +2467,7 @@
     renderStationList();
     renderCoachList();
     renderConflictMatrix();
+    renderCapacityExceptions();
     renderScheduleList();
     renderDayPickerRota();
     renderRotaBoard();
