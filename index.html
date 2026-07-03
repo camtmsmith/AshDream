@@ -507,7 +507,7 @@
   const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const PALETTE = ['#B5292E','#1F7A5C','#C9A227','#2A5CAA','#7A4FA3','#B5602E','#3E8E8E','#8C3F63','#4B7B2A','#A6437A'];
   const STORAGE_KEY = 'gym-scheduler-state-v4';
-  const APP_VERSION = 'v2.1';
+  const APP_VERSION = 'v2.2';
   document.getElementById('versionTag').textContent = ' - ' + APP_VERSION.toUpperCase();
 
   // ---------------- shared-password access gate ----------------
@@ -1083,7 +1083,35 @@
   function hasHostStorage(){
     return typeof window.storage !== 'undefined' && window.storage && typeof window.storage.get === 'function';
   }
+  // Firebase Realtime Database silently converts any object whose keys are all
+  // sequential-looking integers (e.g. {0:.., 1:.., 2:..}) into a real JS array,
+  // filling gaps with null — and this app's schedule (keyed by weekday 0-6) and
+  // allocations (keyed by dayIndex 0-13, then tick) are exactly that shape.
+  // Convert back to plain sparse objects every time state loads, so nothing else
+  // in the app has to care which shape the data happened to arrive in.
+  function objectify(value){
+    if(Array.isArray(value)){
+      const obj = {};
+      value.forEach((v, i) => { if(v !== null && v !== undefined) obj[i] = v; });
+      return obj;
+    }
+    return (value && typeof value === 'object') ? value : {};
+  }
+  function normalizeFirebaseShapes(){
+    state.schedule = objectify(state.schedule);
+    Object.keys(state.schedule).forEach(squadId => {
+      state.schedule[squadId] = objectify(state.schedule[squadId]);
+    });
+    state.allocations = objectify(state.allocations);
+    Object.keys(state.allocations).forEach(dayIndex => {
+      // one level deeper (squadId -> stationId) uses non-numeric keys like "sq1",
+      // so Firebase never array-ifies it — no need to normalize further in.
+      state.allocations[dayIndex] = objectify(state.allocations[dayIndex]);
+    });
+  }
+
   function migrateState(){
+    normalizeFirebaseShapes();
     if(!state.rotationLength) state.rotationLength = 15;
     if(!Array.isArray(state.coachLevels) || state.coachLevels.length === 0){
       state.coachLevels = JSON.parse(JSON.stringify(DEFAULT_STATE.coachLevels));
