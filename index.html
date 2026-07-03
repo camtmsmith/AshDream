@@ -21,13 +21,13 @@
   .wrap{max-width:1280px;margin:0 auto;padding:0 20px 64px;}
 
   .top-bar{position:sticky;top:0;z-index:20;}
-  .board-header{background:linear-gradient(135deg,var(--ink) 0%,var(--ink-2) 100%);color:#fff;padding:10px 20px;}
+  .board-header{background:linear-gradient(135deg,var(--ink) 0%,var(--ink-2) 100%);color:#fff;padding:7px 20px;}
   .board-header-inner{max-width:1280px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;}
   .header-title-line{font-family:'Oswald',sans-serif;font-weight:600;font-size:14px;letter-spacing:.03em;text-transform:uppercase;margin:0;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .header-title-line .version{font-family:'JetBrains Mono',monospace;font-size:11px;color:#8A93AC;text-transform:none;margin-left:8px;letter-spacing:.05em;}
-  .status-chip{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:100px;padding:8px 16px;display:flex;align-items:center;gap:8px;white-space:nowrap;}
+  .status-chip{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:100px;padding:6px 14px;display:flex;align-items:center;gap:8px;white-space:nowrap;}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--spring);}
-  .header-btn{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.03em;background:var(--gold);color:var(--ink);border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-weight:700;}
+  .header-btn{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.03em;background:var(--gold);color:var(--ink);border:none;border-radius:6px;padding:7px 14px;cursor:pointer;font-weight:700;}
   .header-btn:hover{opacity:.9;}
   .header-btn.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);}
   .header-btn.ghost:hover{background:rgba(255,255,255,.08);}
@@ -35,21 +35,38 @@
   .tab-bar{background:var(--ink-2);border-bottom:3px solid var(--gold);}
   .tab-bar-inner{max-width:1280px;margin:0 auto;padding:0 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
   .tab-bar-tabs{display:flex;gap:4px;overflow-x:auto;}
-  .tab-bar-actions{display:flex;gap:8px;flex-wrap:wrap;padding:8px 0;flex-shrink:0;}
-  .tab-bar-actions .header-btn{padding:7px 12px;font-size:10px;}
-  .tab-btn{font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;background:none;border:none;color:#AAB3CB;padding:14px 18px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-3px;white-space:nowrap;}
+  .tab-bar-actions{display:flex;gap:8px;flex-wrap:wrap;padding:6px 0;flex-shrink:0;}
+  .tab-bar-actions .header-btn{padding:6px 12px;font-size:10px;}
+  .tab-btn{font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;background:none;border:none;color:#AAB3CB;padding:11px 18px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-3px;white-space:nowrap;}
   .tab-btn:hover{color:#fff;}
   .tab-btn.active{color:#fff;border-bottom-color:var(--gold);}
   .tab-panel{display:none;}
   .tab-panel.active{display:block;}
 
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px 24px;margin:22px 0;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0;}
   .panel-title{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.04em;font-size:15px;font-weight:600;margin:0 0 4px;}
-  .panel-desc{font-size:13px;color:var(--slate);margin:0 0 18px;line-height:1.5;}
+  .panel-desc{font-size:13px;color:var(--slate);margin:0 0 16px;line-height:1.5;}
 
-  .setup-quickjump{position:sticky;top:var(--topbar-height,84px);z-index:15;background:var(--chalk);padding:14px 0;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-  .setup-quickjump label{font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--slate);}
-  .setup-quickjump select{font-family:'Inter',sans-serif;font-weight:600;font-size:13px;padding:8px 10px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;min-width:200px;}
+  /* ---- setup sub-menu (replaces the old "jump to" dropdown) ---- */
+  .setup-subnav{position:sticky;top:var(--topbar-height,74px);z-index:15;background:var(--chalk);padding:10px 0;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .subnav-btn{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.03em;text-transform:uppercase;background:var(--panel);color:var(--slate);border:1px solid var(--line);border-radius:100px;padding:7px 14px;cursor:pointer;font-weight:600;white-space:nowrap;}
+  .subnav-btn:hover{border-color:var(--ink);color:var(--ink);}
+  .subnav-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  /* ---- reusable squad filter (schedule / rotations / overview) ---- */
+  .squad-filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+  .squad-filter-actions{display:flex;gap:8px;}
+  .squad-filter-items{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;}
+  .squad-filter-item{display:flex;align-items:center;gap:6px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;user-select:none;color:var(--ink);}
+  .squad-filter-item input{cursor:pointer;}
+  .squad-filter-item.is-hidden{color:var(--slate);font-weight:500;}
+
+  /* ---- print menu ---- */
+  .print-menu-wrap{position:relative;display:inline-block;}
+  .print-menu{position:absolute;top:32px;right:0;z-index:30;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px;box-shadow:0 10px 28px rgba(0,0,0,.2);min-width:210px;display:none;}
+  .print-menu.open{display:block;}
+  .print-menu button{display:block;width:100%;text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.02em;background:none;border:none;color:var(--ink);padding:9px 10px;cursor:pointer;border-radius:5px;}
+  .print-menu button:hover{background:var(--chalk);}
 
   /* ---- squads / stations / coaches lists ---- */
   .item-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;transition:border-top-color .1s ease;}
@@ -101,8 +118,9 @@
   .view-toggle-btn{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.04em;text-transform:uppercase;background:var(--idle);color:var(--slate);border:1px solid var(--line);border-radius:100px;padding:7px 14px;cursor:pointer;font-weight:600;}
   .view-toggle-btn:hover:not(.active){background:var(--chalk);border-color:var(--slate);}
   .view-toggle-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
-  .overview-filter-actions{display:flex;gap:8px;margin-bottom:14px;}
   .day-grid{display:grid;grid-template-columns:repeat(var(--dg-cols,7),1fr);gap:8px;}
+  .day-grid-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;}
+  .day-grid-scroll .day-grid{grid-auto-flow:column;grid-auto-columns:minmax(150px,1fr);grid-template-columns:none;}
   .day-card{border:1px solid var(--line);border-radius:8px;padding:8px 6px;background:var(--chalk);}
   .day-card .abbr{font-family:'Oswald',sans-serif;font-size:12px;font-weight:600;text-transform:uppercase;text-align:center;margin-bottom:4px;}
   .day-card .off-hint{font-size:10px;color:var(--slate);font-family:'JetBrains Mono',monospace;text-align:center;cursor:pointer;padding:6px 0;}
@@ -131,6 +149,12 @@
   .pick-dots span{width:5px;height:5px;border-radius:50%;}
   .week-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);letter-spacing:.1em;text-transform:uppercase;margin:14px 0 8px;}
   .week-label:first-of-type{margin-top:0;}
+
+  /* ---- squad picker (rotations "by squad" view) ---- */
+  .squad-pick-row{display:flex;flex-wrap:wrap;gap:8px;}
+  .squad-pick-card{border:1px solid var(--line);border-radius:8px;padding:10px 16px;background:#fff;cursor:pointer;display:flex;align-items:center;gap:8px;font-family:'Inter',sans-serif;font-weight:600;font-size:13px;}
+  .squad-pick-card:hover{border-color:var(--ink);}
+  .squad-pick-card.selected{background:var(--ink);border-color:var(--ink);color:#fff;}
 
   /* ---- rotation grid (squads across the top) ---- */
   .rota-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
@@ -193,6 +217,7 @@
 
   @media (max-width:640px){
     .day-grid{grid-template-columns:repeat(1,1fr);}
+    .day-grid-scroll .day-grid{grid-auto-flow:column;grid-template-columns:none;}
     .day-cards{grid-template-columns:repeat(4,1fr);}
     .rota-select{min-width:70px;font-size:10px;}
     .tab-bar-inner{justify-content:flex-start;}
@@ -220,7 +245,14 @@
       <button class="tab-btn" data-tab="overview">05 · Overview</button>
     </div>
     <div class="tab-bar-actions">
-      <button class="header-btn" id="printBtn">PRINT 14-DAY PDF</button>
+      <div class="print-menu-wrap">
+        <button class="header-btn" id="printMenuBtn">PRINT ▾</button>
+        <div class="print-menu" id="printMenu">
+          <button type="button" id="printRotationsBtn">Rotation Board — 14-Day PDF</button>
+          <button type="button" id="printStaffingBtn">Weekly Staffing Roster</button>
+          <button type="button" id="printIndividualBtn">Individual Coach Rosters</button>
+        </div>
+      </div>
       <button class="header-btn" id="exportBtn">EXPORT BACKUP</button>
       <button class="header-btn ghost" id="importBtn">IMPORT BACKUP</button>
       <input type="file" id="importFile" accept="application/json" style="display:none;">
@@ -233,18 +265,14 @@
 
   <!-- ===================== SETUP ===================== -->
   <div class="tab-panel" id="tab-setup">
-    <div class="setup-quickjump" id="setupQuickjump">
-      <label for="setupJump">Jump to</label>
-      <select id="setupJump">
-        <option value="">Choose a section…</option>
-        <option value="panel-program-details">Program Details</option>
-        <option value="panel-rotation-settings">Rotation Settings</option>
-        <option value="panel-coaching-levels">Coaching Levels</option>
-        <option value="panel-squads">Squads</option>
-        <option value="panel-stations">Gym Stations</option>
-        <option value="panel-coaches">Coaches</option>
-        <option value="panel-conflicts">Station Conflicts</option>
-      </select>
+    <div class="setup-subnav" id="setupSubnav">
+      <button type="button" class="subnav-btn" data-target="panel-program-details">Program Details</button>
+      <button type="button" class="subnav-btn" data-target="panel-rotation-settings">Rotation Settings</button>
+      <button type="button" class="subnav-btn" data-target="panel-coaching-levels">Coaching Levels</button>
+      <button type="button" class="subnav-btn" data-target="panel-squads">Squads</button>
+      <button type="button" class="subnav-btn" data-target="panel-stations">Gym Stations</button>
+      <button type="button" class="subnav-btn" data-target="panel-coaches">Coaches</button>
+      <button type="button" class="subnav-btn" data-target="panel-conflicts">Station Conflicts</button>
     </div>
 
     <div class="panel" id="panel-program-details">
@@ -318,6 +346,7 @@
         <button type="button" class="view-toggle-btn active" data-view="squad">Squad</button>
         <button type="button" class="view-toggle-btn" data-view="day">Day</button>
       </div>
+      <div class="squad-filter" id="scheduleSquadFilter"></div>
       <div id="scheduleList"></div>
     </div>
   </div>
@@ -325,30 +354,67 @@
   <!-- ===================== ROTATIONS ===================== -->
   <div class="tab-panel" id="tab-rotations">
     <div class="panel">
-      <p class="panel-title">Select a Day</p>
-      <div id="dayPickerRota"></div>
+      <p class="panel-title">Rotation View</p>
+      <p class="panel-desc">View one day with every squad's rotations side by side, or one squad's full two-week cycle at a glance.</p>
+      <div class="schedule-view-toggle" id="rotaViewToggle">
+        <span class="view-toggle-label">View by</span>
+        <button type="button" class="view-toggle-btn active" data-rotaview="day">Day</button>
+        <button type="button" class="view-toggle-btn" data-rotaview="squad">Squad</button>
+      </div>
     </div>
-    <div class="panel">
-      <p class="panel-title">Rotation Board — <span id="selectedDayLabelRota"></span></p>
-      <p class="panel-desc">Each column is a squad; each row is a <span id="rlLabel2">15</span>-minute slot. Pick the activity/station each squad is on — a station already at capacity, or one that conflicts with a station in use, will be blocked.</p>
-      <div id="rotaBoard"></div>
-      <p class="hint">Only time slots where at least one squad is in session are shown. Gaps between a squad's morning and afternoon sessions show a dash.</p>
+
+    <div id="rotaViewByDay">
+      <div class="panel">
+        <p class="panel-title">Select a Day</p>
+        <div id="dayPickerRota"></div>
+      </div>
+      <div class="panel">
+        <p class="panel-title">Rotation Board — <span id="selectedDayLabelRota"></span></p>
+        <p class="panel-desc">Each column is a squad; each row is a <span id="rlLabel2">15</span>-minute slot. Pick the activity/station each squad is on — a station already at capacity, or one that conflicts with a station in use, will be blocked. Hiding a squad below only hides its column — its allocations still count toward capacity and conflict checks.</p>
+        <div class="squad-filter" id="rotaSquadFilter"></div>
+        <div id="rotaBoard"></div>
+        <p class="hint" id="rotaHiddenHint"></p>
+        <p class="hint">Only time slots where at least one squad is in session are shown. Gaps between a squad's morning and afternoon sessions show a dash.</p>
+      </div>
+    </div>
+
+    <div id="rotaViewBySquad" style="display:none;">
+      <div class="panel">
+        <p class="panel-title">Select a Squad</p>
+        <div class="squad-pick-row" id="squadPickerRota"></div>
+      </div>
+      <div class="panel">
+        <p class="panel-title">Two-Week Rotation — <span id="selectedSquadLabelRota"></span></p>
+        <p class="panel-desc">Every day this squad trains across the fortnight, Week 1 then Week 2. Picks still check capacity and conflicts against every other squad's allocations, even though those squads aren't shown here.</p>
+        <div id="rotaBySquadBoard"></div>
+      </div>
     </div>
   </div>
+
 
   <!-- ===================== STAFFING ===================== -->
   <div class="tab-panel" id="tab-staffing">
     <div class="panel">
+      <p class="panel-title">Staffing View</p>
+      <p class="panel-desc">Switch between the daily roster (every session, grouped by day) and each coach's individual weekly roster.</p>
+      <div class="schedule-view-toggle" id="staffingViewToggle">
+        <span class="view-toggle-label">View</span>
+        <button type="button" class="view-toggle-btn active" data-staffview="daily">Daily Roster</button>
+        <button type="button" class="view-toggle-btn" data-staffview="individual">Individual Rosters</button>
+      </div>
+    </div>
+    <div class="panel" id="panel-staffing-daily">
       <p class="panel-title">Weekly Staffing Roster</p>
       <p class="panel-desc">Every session this week, grouped by day, with its assigned coach. Sessions with no coach assigned are flagged.</p>
+      <div class="day-cards" id="staffingDayPicker" style="margin-bottom:16px;"></div>
       <div id="rosterTable"></div>
     </div>
-    <div class="panel">
+    <div class="panel" id="panel-staffing-individual" style="display:none;">
       <p class="panel-title">Individual Coach Rosters</p>
       <p class="panel-desc">Each coach's own week at a glance — which squads, and when.</p>
       <div id="coachRosterTable"></div>
     </div>
-    <div class="panel">
+    <div class="panel" id="panel-staffing-load" style="display:none;">
       <p class="panel-title">Sessions per Coach</p>
       <div id="coachLoadTable"></div>
     </div>
@@ -359,11 +425,7 @@
     <div class="panel">
       <p class="panel-title">Fortnightly Station Usage</p>
       <p class="panel-desc">Total <span id="rlLabel3">15</span>-minute blocks each squad has been allocated on each station, broken out by Week 1 and Week 2 so you can check the split is even across the cycle, plus a fortnight total. Stations with no usage for the selected squads are hidden.</p>
-      <div class="overview-filter-actions">
-        <button type="button" class="view-toggle-btn" id="overviewSelectAllBtn">Select All</button>
-        <button type="button" class="view-toggle-btn" id="overviewDeselectAllBtn">Deselect All</button>
-      </div>
-      <div id="overviewSquadFilter" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;"></div>
+      <div class="squad-filter" id="overviewSquadFilter"></div>
       <div id="overviewTable"></div>
     </div>
   </div>
@@ -379,7 +441,7 @@
   const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const PALETTE = ['#B5292E','#1F7A5C','#C9A227','#2A5CAA','#7A4FA3','#B5602E','#3E8E8E','#8C3F63','#4B7B2A','#A6437A'];
   const STORAGE_KEY = 'gym-scheduler-state-v4';
-  const APP_VERSION = 'v1.7b';
+  const APP_VERSION = 'v1.8';
   document.getElementById('versionTag').textContent = ' - ' + APP_VERSION.toUpperCase();
 
   function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -510,6 +572,49 @@
       commit();
     });
   }
+  // Reusable squad filter: renders Select All / Deselect All + a checkbox per squad
+  // into `containerId`, driven by `hiddenSet` (a Set of hidden squad ids). Calls
+  // `onChange()` after any toggle so the caller can re-render whatever it filters.
+  function renderSquadFilter(containerId, hiddenSet, onChange){
+    const el = document.getElementById(containerId);
+    if(!el) return;
+    el.innerHTML = '';
+    if(state.squads.length === 0) return;
+
+    const actions = document.createElement('div');
+    actions.className = 'squad-filter-actions';
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button'; allBtn.className = 'view-toggle-btn'; allBtn.textContent = 'Select All';
+    allBtn.addEventListener('click', () => { hiddenSet.clear(); onChange(); });
+    const noneBtn = document.createElement('button');
+    noneBtn.type = 'button'; noneBtn.className = 'view-toggle-btn'; noneBtn.textContent = 'Deselect All';
+    noneBtn.addEventListener('click', () => { state.squads.forEach(s => hiddenSet.add(s.id)); onChange(); });
+    actions.appendChild(allBtn);
+    actions.appendChild(noneBtn);
+    el.appendChild(actions);
+
+    const items = document.createElement('div');
+    items.className = 'squad-filter-items';
+    state.squads.forEach(s => {
+      const label = document.createElement('label');
+      label.className = 'squad-filter-item' + (hiddenSet.has(s.id) ? ' is-hidden' : '');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !hiddenSet.has(s.id);
+      cb.addEventListener('change', () => {
+        if(cb.checked) hiddenSet.delete(s.id); else hiddenSet.add(s.id);
+        onChange();
+      });
+      label.appendChild(cb);
+      const swatch = document.createElement('span');
+      swatch.className = 'swatch'; swatch.style.background = s.color;
+      label.appendChild(swatch);
+      label.appendChild(document.createTextNode(s.name));
+      items.appendChild(label);
+    });
+    el.appendChild(items);
+  }
+
   function toMinutes(hhmm){ const [h,m]=(hhmm||'16:00').split(':').map(Number); return h*60+(m||0); }
   function fmt12(mins){
     mins = ((mins%1440)+1440)%1440;
@@ -725,6 +830,7 @@
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
     syncTopBarHeight();
+    setTimeout(setupSubnavScrollspy, 50);
   }
   document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
@@ -736,17 +842,41 @@
   window.addEventListener('resize', syncTopBarHeight);
   window.addEventListener('load', syncTopBarHeight);
 
-  document.getElementById('setupJump').addEventListener('change', (e) => {
-    const targetId = e.target.value;
-    e.target.value = '';
-    if(!targetId) return;
-    const target = document.getElementById(targetId);
-    if(!target) return;
-    const quickjump = document.getElementById('setupQuickjump');
-    const offset = (document.querySelector('.top-bar')?.offsetHeight || 0) + (quickjump?.offsetHeight || 0) + 14;
-    const top = target.getBoundingClientRect().top + window.pageYOffset - offset;
-    window.scrollTo({ top, behavior: 'smooth' });
+  // ---------------- setup sub-menu (jump + scrollspy) ----------------
+  const subnavBtns = Array.from(document.querySelectorAll('.subnav-btn'));
+  function subnavOffset(){
+    const subnav = document.getElementById('setupSubnav');
+    return (document.querySelector('.top-bar')?.offsetHeight || 0) + (subnav?.offsetHeight || 0) + 14;
+  }
+  subnavBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = document.getElementById(btn.dataset.target);
+      if(!target) return;
+      const top = target.getBoundingClientRect().top + window.pageYOffset - subnavOffset();
+      window.scrollTo({ top, behavior: 'smooth' });
+    });
   });
+  let subnavObserver = null;
+  function setupSubnavScrollspy(){
+    if(subnavObserver) subnavObserver.disconnect();
+    if(activeTab !== 'setup') return;
+    if(typeof IntersectionObserver === 'undefined') return; // scrollspy highlight is a nice-to-have; clicks still work without it
+    const offset = subnavOffset();
+    subnavObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if(entry.isIntersecting){
+          const btn = subnavBtns.find(b => b.dataset.target === entry.target.id);
+          if(btn){
+            subnavBtns.forEach(b => b.classList.toggle('active', b === btn));
+          }
+        }
+      });
+    }, { rootMargin: `-${offset}px 0px -70% 0px`, threshold: 0 });
+    subnavBtns.forEach(btn => {
+      const target = document.getElementById(btn.dataset.target);
+      if(target) subnavObserver.observe(target);
+    });
+  }
 
   document.getElementById('rotationLengthInput').addEventListener('change', (e) => {
     const val = Math.max(5, Math.min(60, Math.round(Number(e.target.value)) || state.rotationLength));
@@ -1209,13 +1339,18 @@
   }
 
   let scheduleViewMode = 'squad'; // 'squad' = squad blocks with day columns, 'day' = day blocks with squad columns
+  let scheduleHiddenSquads = new Set();
   const DAY_NAMES_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
   function renderScheduleList(){
+    renderSquadFilter('scheduleSquadFilter', scheduleHiddenSquads, renderScheduleList);
     const el = document.getElementById('scheduleList');
     el.innerHTML = '';
     if(state.squads.length === 0){ el.innerHTML = '<p class="empty-note">Add a squad in Setup first.</p>'; return; }
     state.squads.forEach(s => { if(!state.schedule[s.id]) state.schedule[s.id] = {}; });
+
+    const visibleSquads = state.squads.filter(s => !scheduleHiddenSquads.has(s.id));
+    if(visibleSquads.length === 0){ el.innerHTML = '<p class="empty-note">Select at least one squad above to see its schedule.</p>'; return; }
 
     if(scheduleViewMode === 'day'){
       for(let weekday = 0; weekday < 7; weekday++){
@@ -1227,16 +1362,20 @@
         head.textContent = DAY_NAMES_FULL[weekday];
         block.appendChild(head);
 
+        // Squad count is unbounded, so this row scrolls horizontally instead of
+        // squeezing every squad's controls down to an unusable width.
+        const scroll = document.createElement('div');
+        scroll.className = 'day-grid-scroll';
         const grid = document.createElement('div');
         grid.className = 'day-grid';
-        grid.style.setProperty('--dg-cols', state.squads.length);
-        state.squads.forEach(s => grid.appendChild(buildDayCard(s, weekday, 'squad')));
-        block.appendChild(grid);
+        visibleSquads.forEach(s => grid.appendChild(buildDayCard(s, weekday, 'squad')));
+        scroll.appendChild(grid);
+        block.appendChild(scroll);
 
         el.appendChild(block);
       }
     } else {
-      state.squads.forEach(s => {
+      visibleSquads.forEach(s => {
         const block = document.createElement('div');
         block.className = 'squad-block';
 
@@ -1254,11 +1393,11 @@
       });
     }
   }
-  document.querySelectorAll('.schedule-view-toggle button').forEach(btn => {
+  document.querySelectorAll('#tab-schedule .schedule-view-toggle button').forEach(btn => {
     btn.addEventListener('click', () => {
       if(scheduleViewMode === btn.dataset.view) return;
       scheduleViewMode = btn.dataset.view;
-      document.querySelectorAll('.schedule-view-toggle button').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('#tab-schedule .schedule-view-toggle button').forEach(b => b.classList.toggle('active', b === btn));
       renderScheduleList();
     });
   });
@@ -1383,9 +1522,98 @@
   // Builds one rotation-board table for a given day. interactive=true adds live
   // dropdowns with conflict checking (used on-screen); interactive=false renders
   // plain read-only cells (used for the print/PDF view).
-  function buildRotaTable(dayIndex, interactive){
+  // Builds one station-picker cell for a given squad/day/tick. Shared by the "by
+  // day" board (columns = squads) and the "by squad" board (columns = days) so
+  // capacity/conflict logic and the interactive dropdown only exist once.
+  // `onBlocked` re-renders whichever board called this after a blocked change.
+  function buildStationCell(dayIndex, tick, squad, interactive, onBlocked){
+    const td = document.createElement('td');
+    if(!squadInSessionAtTick(squad.id, dayIndex, tick)){
+      const dash = document.createElement('span');
+      dash.className = interactive ? 'rota-dash' : '';
+      dash.textContent = '—';
+      td.appendChild(dash);
+      return td;
+    }
+
+    const currentStationId = getAlloc(dayIndex, tick, squad.id);
+    const currentStation = state.stations.find(x => x.id === currentStationId);
+
+    if(!interactive){
+      td.textContent = currentStation ? currentStation.name : 'Open';
+      if(currentStation){ td.style.background = currentStation.color; td.style.color = '#fff'; }
+      return td;
+    }
+
+    const select = document.createElement('select');
+    select.className = 'rota-select';
+    select.style.background = currentStation ? currentStation.color : '';
+    select.style.color = currentStation ? '#fff' : '';
+    select.style.borderColor = currentStation ? currentStation.color : '';
+
+    const openOpt = document.createElement('option');
+    openOpt.value = ''; openOpt.textContent = '— open —';
+    if(!currentStationId) openOpt.selected = true;
+    select.appendChild(openOpt);
+
+    const dayAllocsForOptions = (state.allocations[dayIndex] || {})[tick] || {};
+    state.stations.forEach(st => {
+      const opt = document.createElement('option');
+      const cap = st.capacity || 1;
+      const used = Object.keys(dayAllocsForOptions).filter(sqId => sqId !== squad.id && dayAllocsForOptions[sqId] === st.id).length;
+      opt.value = st.id;
+      opt.textContent = cap > 1 ? `${st.name} (${used}/${cap})` : st.name;
+      opt.style.backgroundColor = st.color;
+      opt.style.color = '#fff';
+      if(st.id === currentStationId) opt.selected = true;
+      select.appendChild(opt);
+    });
+
+    select.addEventListener('change', () => {
+      const newStationId = select.value;
+      const newStation = state.stations.find(x=>x.id===newStationId);
+      if(!newStationId){
+        setAlloc(dayIndex, tick, squad.id, '');
+        commit();
+        return;
+      }
+      const dayAllocs = (state.allocations[dayIndex] || {})[tick] || {};
+      const occupantIds = Object.keys(dayAllocs).filter(sqId => sqId !== squad.id && dayAllocs[sqId] === newStationId);
+      const capacity = newStation.capacity || 1;
+      if(occupantIds.length >= capacity){
+        const names = occupantIds.map(id => (state.squads.find(x=>x.id===id)||{}).name).filter(Boolean).join(', ');
+        showFlash(`${newStation.name} is at capacity (${occupantIds.length}/${capacity}) at this time — already in use by ${names}.`);
+        onBlocked();
+        return;
+      }
+      for(const otherSqId in dayAllocs){
+        if(otherSqId === squad.id) continue;
+        const otherStId = dayAllocs[otherSqId];
+        if(!otherStId) continue;
+        if(state.conflicts.includes(pairKey(newStationId, otherStId))){
+          const otherSt = state.stations.find(x=>x.id===otherStId);
+          const otherSq = state.squads.find(x=>x.id===otherSqId);
+          showFlash(`${newStation.name} conflicts with ${otherSt ? otherSt.name : 'another station'}, already in use by ${otherSq ? otherSq.name : 'a squad'} at this time.`);
+          onBlocked();
+          return;
+        }
+      }
+      setAlloc(dayIndex, tick, squad.id, newStationId);
+      commit();
+    });
+
+    td.appendChild(select);
+    return td;
+  }
+
+  function buildRotaTable(dayIndex, interactive, hiddenSquadIds){
+    hiddenSquadIds = hiddenSquadIds || new Set();
     const squadsToday = squadsTrainingOnDay(dayIndex);
     if(state.stations.length === 0 || squadsToday.length === 0) return null;
+    // Columns only show squads that aren't hidden; every capacity/conflict check
+    // below still reads from state.allocations for ALL squads, so a hidden squad's
+    // station usage is still enforced even though its column isn't displayed.
+    const visibleSquadsToday = squadsToday.filter(s => !hiddenSquadIds.has(s.id));
     const {min, max} = dayTickRange(dayIndex);
     if(min === null) return null;
 
@@ -1394,7 +1622,7 @@
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
     trh.appendChild(document.createElement('th'));
-    squadsToday.forEach(s => {
+    visibleSquadsToday.forEach(s => {
       const th = document.createElement('th');
       const sessions = ((state.schedule[s.id]||{})[weekdayOf(dayIndex)])||[];
       const coachNames = [...new Set(sessions.map(ses => {
@@ -1420,89 +1648,16 @@
       const tr = document.createElement('tr');
       const labelTd = document.createElement('td');
       labelTd.className = 'tick-label';
-      labelTd.textContent = fmt12(tick*state.rotationLength) + '–' + fmt12((tick+1)*state.rotationLength);
+      let labelText = fmt12(tick*state.rotationLength) + '–' + fmt12((tick+1)*state.rotationLength);
+      if(interactive && hiddenSquadIds.size){
+        const hiddenInSession = inSessionSquads.filter(s => hiddenSquadIds.has(s.id));
+        if(hiddenInSession.length) labelText += ` (+${hiddenInSession.length} hidden)`;
+      }
+      labelTd.textContent = labelText;
       tr.appendChild(labelTd);
 
-      squadsToday.forEach(s => {
-        const td = document.createElement('td');
-        if(!squadInSessionAtTick(s.id, dayIndex, tick)){
-          const dash = document.createElement('span');
-          dash.className = interactive ? 'rota-dash' : '';
-          dash.textContent = '—';
-          td.appendChild(dash);
-          tr.appendChild(td);
-          return;
-        }
-
-        const currentStationId = getAlloc(dayIndex, tick, s.id);
-        const currentStation = state.stations.find(x => x.id === currentStationId);
-
-        if(!interactive){
-          td.textContent = currentStation ? currentStation.name : 'Open';
-          if(currentStation){ td.style.background = currentStation.color; td.style.color = '#fff'; }
-          tr.appendChild(td);
-          return;
-        }
-
-        const select = document.createElement('select');
-        select.className = 'rota-select';
-        select.style.background = currentStation ? currentStation.color : '';
-        select.style.color = currentStation ? '#fff' : '';
-        select.style.borderColor = currentStation ? currentStation.color : '';
-
-        const openOpt = document.createElement('option');
-        openOpt.value = ''; openOpt.textContent = '— open —';
-        if(!currentStationId) openOpt.selected = true;
-        select.appendChild(openOpt);
-
-        const dayAllocsForOptions = (state.allocations[dayIndex] || {})[tick] || {};
-        state.stations.forEach(st => {
-          const opt = document.createElement('option');
-          const cap = st.capacity || 1;
-          const used = Object.keys(dayAllocsForOptions).filter(sqId => sqId !== s.id && dayAllocsForOptions[sqId] === st.id).length;
-          opt.value = st.id;
-          opt.textContent = cap > 1 ? `${st.name} (${used}/${cap})` : st.name;
-          opt.style.backgroundColor = st.color;
-          opt.style.color = '#fff';
-          if(st.id === currentStationId) opt.selected = true;
-          select.appendChild(opt);
-        });
-
-        select.addEventListener('change', () => {
-          const newStationId = select.value;
-          const newStation = state.stations.find(x=>x.id===newStationId);
-          if(!newStationId){
-            setAlloc(dayIndex, tick, s.id, '');
-            commit();
-            return;
-          }
-          const dayAllocs = (state.allocations[dayIndex] || {})[tick] || {};
-          const occupantIds = Object.keys(dayAllocs).filter(sqId => sqId !== s.id && dayAllocs[sqId] === newStationId);
-          const capacity = newStation.capacity || 1;
-          if(occupantIds.length >= capacity){
-            const names = occupantIds.map(id => (state.squads.find(x=>x.id===id)||{}).name).filter(Boolean).join(', ');
-            showFlash(`${newStation.name} is at capacity (${occupantIds.length}/${capacity}) at this time — already in use by ${names}.`);
-            renderRotaBoard();
-            return;
-          }
-          for(const otherSqId in dayAllocs){
-            if(otherSqId === s.id) continue;
-            const otherStId = dayAllocs[otherSqId];
-            if(!otherStId) continue;
-            if(state.conflicts.includes(pairKey(newStationId, otherStId))){
-              const otherSt = state.stations.find(x=>x.id===otherStId);
-              const otherSq = state.squads.find(x=>x.id===otherSqId);
-              showFlash(`${newStation.name} conflicts with ${otherSt ? otherSt.name : 'another station'}, already in use by ${otherSq ? otherSq.name : 'a squad'} at this time.`);
-              renderRotaBoard();
-              return;
-            }
-          }
-          setAlloc(dayIndex, tick, s.id, newStationId);
-          commit();
-        });
-
-        td.appendChild(select);
-        tr.appendChild(td);
+      visibleSquadsToday.forEach(s => {
+        tr.appendChild(buildStationCell(dayIndex, tick, s, interactive, renderRotaBoard));
       });
       tbody.appendChild(tr);
     }
@@ -1510,71 +1665,359 @@
     return table;
   }
 
+  let rotaHiddenSquads = new Set();
   function renderRotaBoard(){
+    renderSquadFilter('rotaSquadFilter', rotaHiddenSquads, renderRotaBoard);
     document.getElementById('selectedDayLabelRota').textContent = dayLabel(state.selectedDay);
     const container = document.getElementById('rotaBoard');
+    const hiddenHint = document.getElementById('rotaHiddenHint');
     const existingScroll = container.querySelector('.rota-scroll');
     const savedScrollLeft = existingScroll ? existingScroll.scrollLeft : 0;
     container.innerHTML = '';
+    if(hiddenHint) hiddenHint.textContent = '';
 
     if(state.stations.length === 0){
       container.innerHTML = '<p class="empty-note">Add at least one station in Setup first.</p>';
       return;
     }
-    if(squadsTrainingOnDay(state.selectedDay).length === 0){
+    const squadsToday = squadsTrainingOnDay(state.selectedDay);
+    if(squadsToday.length === 0){
       container.innerHTML = '<p class="empty-note">No squads train on this day.</p>';
       return;
     }
-    const table = buildRotaTable(state.selectedDay, true);
+    const visibleToday = squadsToday.filter(s => !rotaHiddenSquads.has(s.id));
+    if(visibleToday.length === 0){
+      container.innerHTML = '<p class="empty-note">Every squad training today is hidden — select at least one above to see the board. Their allocations are still active and still checked for conflicts.</p>';
+      return;
+    }
+    const table = buildRotaTable(state.selectedDay, true, rotaHiddenSquads);
     if(table){
       const scrollWrap = document.createElement('div');
       scrollWrap.className = 'rota-scroll';
       scrollWrap.appendChild(table);
       container.appendChild(scrollWrap);
       scrollWrap.scrollLeft = savedScrollLeft;
+      if(hiddenHint && rotaHiddenSquads.size){
+        const hiddenTrainingToday = squadsToday.filter(s => rotaHiddenSquads.has(s.id));
+        if(hiddenTrainingToday.length){
+          hiddenHint.textContent = `Hidden but still training today (allocations still enforced): ${hiddenTrainingToday.map(s=>s.name).join(', ')}.`;
+        }
+      }
     }
   }
 
-  // ===================== PRINT 14-DAY PDF =====================
-  document.getElementById('printBtn').addEventListener('click', () => {
-    const printArea = document.getElementById('printArea');
-    printArea.innerHTML = '';
-    let anyDay = false;
-    for(let dayIndex = 0; dayIndex < 14; dayIndex++){
-      const table = buildRotaTable(dayIndex, false);
-      if(!table) continue;
-      anyDay = true;
-      const page = document.createElement('div');
-      page.className = 'print-day';
-      const h2 = document.createElement('h2');
-      h2.textContent = dayLabel(dayIndex);
-      const sub = document.createElement('div');
-      sub.className = 'print-sub';
-      sub.textContent = squadsTrainingOnDay(dayIndex).map(s=>s.name).join(' · ');
-      page.appendChild(h2);
-      page.appendChild(sub);
-      page.appendChild(table);
-      printArea.appendChild(page);
+  // ---- rotations: "by squad" two-week view ----
+  let rotaViewMode = 'day'; // 'day' = pick a day, see all squads; 'squad' = pick a squad, see its full 14-day cycle
+  let selectedSquadRota = null;
+
+  function applyRotaView(){
+    document.getElementById('rotaViewByDay').style.display = rotaViewMode === 'day' ? '' : 'none';
+    document.getElementById('rotaViewBySquad').style.display = rotaViewMode === 'squad' ? '' : 'none';
+  }
+  document.querySelectorAll('#rotaViewToggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(rotaViewMode === btn.dataset.rotaview) return;
+      rotaViewMode = btn.dataset.rotaview;
+      document.querySelectorAll('#rotaViewToggle button').forEach(b => b.classList.toggle('active', b === btn));
+      applyRotaView();
+      if(rotaViewMode === 'squad') renderRotaBySquad();
+    });
+  });
+
+  function renderSquadPickerRota(){
+    const el = document.getElementById('squadPickerRota');
+    el.innerHTML = '';
+    if(state.squads.length === 0){ el.innerHTML = '<p class="empty-note">Add a squad in Setup first.</p>'; return; }
+    if(!selectedSquadRota || !state.squads.some(s => s.id === selectedSquadRota)) selectedSquadRota = state.squads[0].id;
+    state.squads.forEach(s => {
+      const card = document.createElement('div');
+      card.className = 'squad-pick-card' + (selectedSquadRota === s.id ? ' selected' : '');
+      card.innerHTML = `<span class="swatch" style="background:${s.color}"></span>${s.name}`;
+      card.addEventListener('click', () => { selectedSquadRota = s.id; renderRotaBySquad(); });
+      el.appendChild(card);
+    });
+  }
+
+  // Builds the two-week cycle for one squad by reusing buildRotaTable with every
+  // other squad hidden — so the same capacity/conflict logic that governs the
+  // day view applies here too, just against squads that aren't drawn on screen.
+  // One table per week for the squad view: rows are the squad's own time slots
+  // (shared down the left, not repeated per day), columns are the days it trains
+  // that week, lined up so the same row is always the same clock time.
+  function buildSquadWeekTable(weekStart, squad){
+    const dayIndexes = [];
+    for(let dayIndex = weekStart; dayIndex < weekStart + 7; dayIndex++){
+      const weekday = weekdayOf(dayIndex);
+      if(((state.schedule[squad.id] || {})[weekday] || []).length) dayIndexes.push(dayIndex);
     }
-    if(!anyDay){
-      showFlash('Nothing to print yet — set up squads, stations, and session times first.');
+    if(dayIndexes.length === 0) return null;
+
+    // Tick range is derived purely from this squad's own sessions across these
+    // days — ticks are clock-time-based (minutes / rotationLength), so the same
+    // tick always means the same time of day and rows line up correctly.
+    let min = null, max = null;
+    dayIndexes.forEach(dayIndex => {
+      const weekday = weekdayOf(dayIndex);
+      (state.schedule[squad.id][weekday] || []).forEach(session => {
+        const {startTick, endTick} = sessionTicks(session);
+        if(min === null || startTick < min) min = startTick;
+        if(max === null || endTick > max) max = endTick;
+      });
+    });
+    if(min === null) return null;
+
+    const table = document.createElement('table');
+    table.className = 'rota';
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+    trh.appendChild(document.createElement('th'));
+    dayIndexes.forEach(dayIndex => {
+      const weekday = weekdayOf(dayIndex);
+      const th = document.createElement('th');
+      const sessions = (state.schedule[squad.id][weekday] || []);
+      const coachNames = [...new Set(sessions.map(ses => {
+        const c = state.coaches.find(x=>x.id===ses.coachId);
+        let name = c ? c.name : null;
+        const asst = state.coaches.find(x=>x.id===ses.assistantCoachId);
+        if(name && asst) name += ` (+${asst.name})`;
+        if(name && sessions.length>1) name = `${ses.label}: ${name}`;
+        return name;
+      }).filter(Boolean))];
+      th.innerHTML = `${DAY_NAMES_FULL[weekday]}` +
+        (coachNames.length ? `<span class="coach-sub">${coachNames.join(' · ')}</span>` : `<span class="coach-sub">No coach assigned</span>`);
+      trh.appendChild(th);
+    });
+    thead.appendChild(trh);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    for(let tick = min; tick < max; tick++){
+      if(!dayIndexes.some(dayIndex => squadInSessionAtTick(squad.id, dayIndex, tick))) continue;
+
+      const tr = document.createElement('tr');
+      const labelTd = document.createElement('td');
+      labelTd.className = 'tick-label';
+      labelTd.textContent = fmt12(tick*state.rotationLength) + '–' + fmt12((tick+1)*state.rotationLength);
+      tr.appendChild(labelTd);
+
+      dayIndexes.forEach(dayIndex => {
+        tr.appendChild(buildStationCell(dayIndex, tick, squad, true, renderRotaBySquad));
+      });
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    return table;
+  }
+
+  function renderRotaBySquad(){
+    renderSquadPickerRota();
+    const labelEl = document.getElementById('selectedSquadLabelRota');
+    const boardEl = document.getElementById('rotaBySquadBoard');
+    boardEl.innerHTML = '';
+
+    if(state.squads.length === 0) { labelEl.textContent = ''; return; }
+    const squad = state.squads.find(s => s.id === selectedSquadRota) || state.squads[0];
+    labelEl.textContent = squad.name;
+
+    if(state.stations.length === 0){
+      boardEl.innerHTML = '<p class="empty-note">Add at least one station in Setup first.</p>';
       return;
     }
+
+    let anyWeek = false;
+    [0, 7].forEach(weekStart => {
+      const table = buildSquadWeekTable(weekStart, squad);
+      if(!table) return;
+      anyWeek = true;
+
+      const weekBlock = document.createElement('div');
+      const weekLabel = document.createElement('div');
+      weekLabel.className = 'week-label';
+      weekLabel.textContent = 'Week ' + (weekStart === 0 ? 1 : 2);
+      weekBlock.appendChild(weekLabel);
+
+      const scrollWrap = document.createElement('div');
+      scrollWrap.className = 'rota-scroll';
+      scrollWrap.appendChild(table);
+      weekBlock.appendChild(scrollWrap);
+
+      boardEl.appendChild(weekBlock);
+    });
+
+    if(!anyWeek){
+      boardEl.innerHTML = '<p class="empty-note">This squad has no session times set yet — add them in Training Schedule.</p>';
+    }
+  }
+  const printMenuBtn = document.getElementById('printMenuBtn');
+  const printMenu = document.getElementById('printMenu');
+  printMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    printMenu.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if(!printMenu.contains(e.target) && e.target !== printMenuBtn) printMenu.classList.remove('open');
+  });
+
+  function runPrint(buildFn){
+    printMenu.classList.remove('open');
+    const printArea = document.getElementById('printArea');
+    printArea.innerHTML = '';
+    const ok = buildFn(printArea);
+    if(!ok) return;
     window.print();
+  }
+
+  document.getElementById('printRotationsBtn').addEventListener('click', () => {
+    runPrint((printArea) => {
+      let anyDay = false;
+      for(let dayIndex = 0; dayIndex < 14; dayIndex++){
+        const table = buildRotaTable(dayIndex, false);
+        if(!table) continue;
+        anyDay = true;
+        const page = document.createElement('div');
+        page.className = 'print-day';
+        const h2 = document.createElement('h2');
+        h2.textContent = dayLabel(dayIndex);
+        const sub = document.createElement('div');
+        sub.className = 'print-sub';
+        sub.textContent = squadsTrainingOnDay(dayIndex).map(s=>s.name).join(' · ');
+        page.appendChild(h2);
+        page.appendChild(sub);
+        page.appendChild(table);
+        printArea.appendChild(page);
+      }
+      if(!anyDay) showFlash('Nothing to print yet — set up squads, stations, and session times first.');
+      return anyDay;
+    });
+  });
+
+  document.getElementById('printStaffingBtn').addEventListener('click', () => {
+    runPrint((printArea) => {
+      let any = false;
+      for(let weekday = 0; weekday < 7; weekday++){
+        const rows = [];
+        squadsTrainingOnDay(weekday).forEach(s => {
+          (state.schedule[s.id][weekday]||[]).forEach(session => rows.push({s, session}));
+        });
+        rows.sort((a,b) => toMinutes(a.session.startTime) - toMinutes(b.session.startTime));
+        if(rows.length === 0) continue;
+        any = true;
+
+        const page = document.createElement('div');
+        page.className = 'print-day';
+        const h2 = document.createElement('h2');
+        h2.textContent = DAY_NAMES_FULL[weekday];
+        page.appendChild(h2);
+
+        const table = document.createElement('table');
+        table.className = 'print-table';
+        const thead = document.createElement('tr');
+        ['Squad','Session','Time','Coach','Assistant'].forEach(h => { const th = document.createElement('th'); th.textContent = h; thead.appendChild(th); });
+        table.appendChild(thead);
+        rows.forEach(({s, session}) => {
+          const startMin = toMinutes(session.startTime);
+          const endMin = startMin + session.duration;
+          const coach = session.coachId ? (state.coaches.find(c=>c.id===session.coachId)||{}).name : 'UNASSIGNED';
+          const asst = state.coaches.find(c => c.id === session.assistantCoachId);
+          const tr = document.createElement('tr');
+          [s.name, session.label || 'Session', fmt12(startMin)+' – '+fmt12(endMin), coach, asst ? asst.name : '—'].forEach(txt => {
+            const td = document.createElement('td'); td.textContent = txt; tr.appendChild(td);
+          });
+          table.appendChild(tr);
+        });
+        page.appendChild(table);
+        printArea.appendChild(page);
+      }
+      if(!any) showFlash('Nothing to print yet — set squad session times in Training Schedule.');
+      return any;
+    });
+  });
+
+  document.getElementById('printIndividualBtn').addEventListener('click', () => {
+    runPrint((printArea) => {
+      if(state.coaches.length === 0){ showFlash('Add a coach in Setup first.'); return false; }
+      let any = false;
+      state.coaches.forEach(c => {
+        const sessions = [];
+        for(let weekday = 0; weekday < 7; weekday++){
+          squadsTrainingOnDay(weekday).forEach(s => {
+            (state.schedule[s.id][weekday]||[]).forEach(session => {
+              if(session.coachId === c.id) sessions.push({weekday, squad:s, session});
+            });
+          });
+        }
+        if(sessions.length === 0) return;
+        any = true;
+        sessions.sort((a,b) => a.weekday - b.weekday || toMinutes(a.session.startTime) - toMinutes(b.session.startTime));
+
+        const page = document.createElement('div');
+        page.className = 'print-day';
+        const h2 = document.createElement('h2');
+        h2.textContent = c.name;
+        page.appendChild(h2);
+
+        const table = document.createElement('table');
+        table.className = 'print-table';
+        const thead = document.createElement('tr');
+        ['Day','Squad','Session','Time'].forEach(h => { const th = document.createElement('th'); th.textContent = h; thead.appendChild(th); });
+        table.appendChild(thead);
+        sessions.forEach(({weekday, squad, session}) => {
+          const startMin = toMinutes(session.startTime);
+          const endMin = startMin + session.duration;
+          const tr = document.createElement('tr');
+          [DAY_NAMES[weekday], squad.name, session.label || 'Session', fmt12(startMin)+' – '+fmt12(endMin)].forEach(txt => {
+            const td = document.createElement('td'); td.textContent = txt; tr.appendChild(td);
+          });
+          table.appendChild(tr);
+        });
+        page.appendChild(table);
+        printArea.appendChild(page);
+      });
+      if(!any) showFlash('No sessions assigned to any coach yet.');
+      return any;
+    });
   });
 
   // ===================== STAFFING =====================
+  let staffingViewMode = 'daily'; // 'daily' = weekly roster grouped by day, 'individual' = per-coach rosters
+  let staffingSelectedDay = null; // null = show every day; otherwise a single weekday (0-6)
+
+  function renderStaffingDayPicker(){
+    const el = document.getElementById('staffingDayPicker');
+    if(!el) return;
+    el.innerHTML = '';
+    const allCard = document.createElement('div');
+    allCard.className = 'pick-card' + (staffingSelectedDay === null ? ' selected' : '');
+    allCard.innerHTML = `<div class="abbr">All</div><div class="sub">Full week</div>`;
+    allCard.addEventListener('click', () => { staffingSelectedDay = null; renderRoster(); });
+    el.appendChild(allCard);
+    for(let weekday = 0; weekday < 7; weekday++){
+      const squadsToday = squadsTrainingOnDay(weekday);
+      const card = document.createElement('div');
+      card.className = 'pick-card' + (staffingSelectedDay === weekday ? ' selected' : '');
+      card.innerHTML = `
+        <div class="abbr">${dayAbbr(weekday)}</div>
+        <div class="sub">${squadsToday.length ? squadsToday.length+' sq' : '—'}</div>
+        <div class="pick-dots">${squadsToday.map(s=>`<span style="background:${s.color}"></span>`).join('')}</div>
+      `;
+      card.addEventListener('click', () => { staffingSelectedDay = weekday; renderRoster(); });
+      el.appendChild(card);
+    }
+  }
+
   function renderRoster(){
+    renderStaffingDayPicker();
     const el = document.getElementById('rosterTable');
     el.innerHTML = '';
     let any = false;
-    for(let weekday = 0; weekday < 7; weekday++){
+    const daysToShow = staffingSelectedDay === null ? [0,1,2,3,4,5,6] : [staffingSelectedDay];
+    daysToShow.forEach(weekday => {
       const rows = [];
       squadsTrainingOnDay(weekday).forEach(s => {
         (state.schedule[s.id][weekday]||[]).forEach(session => rows.push({s, session}));
       });
       rows.sort((a,b) => toMinutes(a.session.startTime) - toMinutes(b.session.startTime));
-      if(rows.length === 0) continue;
+      if(rows.length === 0) return;
       any = true;
 
       const title = document.createElement('div');
@@ -1619,8 +2062,12 @@
         table.appendChild(tr);
       });
       el.appendChild(table);
+    });
+    if(!any){
+      el.innerHTML = staffingSelectedDay === null
+        ? '<p class="empty-note">No sessions scheduled yet — set squad session times in Training Schedule.</p>'
+        : `<p class="empty-note">No sessions scheduled on ${DAY_NAMES[staffingSelectedDay]} — pick another day, or set squad session times in Training Schedule.</p>`;
     }
-    if(!any) el.innerHTML = '<p class="empty-note">No sessions scheduled yet — set squad session times in Training Schedule.</p>';
   }
 
   function renderCoachRosters(){
@@ -1708,6 +2155,20 @@
     el.appendChild(table);
   }
 
+  function applyStaffingView(){
+    document.getElementById('panel-staffing-daily').style.display = staffingViewMode === 'daily' ? '' : 'none';
+    document.getElementById('panel-staffing-individual').style.display = staffingViewMode === 'individual' ? '' : 'none';
+    document.getElementById('panel-staffing-load').style.display = staffingViewMode === 'individual' ? '' : 'none';
+  }
+  document.querySelectorAll('#staffingViewToggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(staffingViewMode === btn.dataset.staffview) return;
+      staffingViewMode = btn.dataset.staffview;
+      document.querySelectorAll('#staffingViewToggle button').forEach(b => b.classList.toggle('active', b === btn));
+      applyStaffingView();
+    });
+  });
+
   // ===================== OVERVIEW =====================
   function getStationGroups(){
     // Combine stations that share the same first word (e.g. "Floor", "Floor 1", "Floor 2" -> "Floor")
@@ -1788,40 +2249,9 @@
   }
 
   let overviewHiddenSquads = new Set();
-  function renderOverviewFilter(){
-    const el = document.getElementById('overviewSquadFilter');
-    el.innerHTML = '';
-    state.squads.forEach(s => {
-      const label = document.createElement('label');
-      label.style.display = 'flex'; label.style.alignItems = 'center'; label.style.gap = '6px';
-      label.style.fontFamily = "'Inter',sans-serif"; label.style.fontSize = '13px'; label.style.fontWeight = '600';
-      label.style.cursor = 'pointer';
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = !overviewHiddenSquads.has(s.id);
-      cb.addEventListener('change', () => {
-        if(cb.checked) overviewHiddenSquads.delete(s.id); else overviewHiddenSquads.add(s.id);
-        renderOverview();
-      });
-      label.appendChild(cb);
-      const swatch = document.createElement('span');
-      swatch.className = 'swatch'; swatch.style.background = s.color;
-      label.appendChild(swatch);
-      label.appendChild(document.createTextNode(s.name));
-      el.appendChild(label);
-    });
-  }
-  document.getElementById('overviewSelectAllBtn').addEventListener('click', () => {
-    overviewHiddenSquads.clear();
-    renderOverview();
-  });
-  document.getElementById('overviewDeselectAllBtn').addEventListener('click', () => {
-    state.squads.forEach(s => overviewHiddenSquads.add(s.id));
-    renderOverview();
-  });
 
   function renderOverview(){
-    renderOverviewFilter();
+    renderSquadFilter('overviewSquadFilter', overviewHiddenSquads, renderOverview);
     const el = document.getElementById('overviewTable');
     if(state.squads.length === 0 || state.stations.length === 0){
       el.innerHTML = '<p class="empty-note">Add squads and stations to see usage.</p>';
@@ -1865,9 +2295,12 @@
     renderScheduleList();
     renderDayPickerRota();
     renderRotaBoard();
+    renderRotaBySquad();
+    applyRotaView();
     renderRoster();
     renderCoachRosters();
     renderCoachLoad();
+    applyStaffingView();
     renderOverview();
   }
 
