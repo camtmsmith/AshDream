@@ -507,7 +507,7 @@
   const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const PALETTE = ['#B5292E','#1F7A5C','#C9A227','#2A5CAA','#7A4FA3','#B5602E','#3E8E8E','#8C3F63','#4B7B2A','#A6437A'];
   const STORAGE_KEY = 'gym-scheduler-state-v4';
-  const APP_VERSION = 'v2.2';
+  const APP_VERSION = 'v2.3';
   document.getElementById('versionTag').textContent = ' - ' + APP_VERSION.toUpperCase();
 
   // ---------------- shared-password access gate ----------------
@@ -618,19 +618,51 @@
   // Debounced push so a burst of quick edits (e.g. dragging rows) sends one
   // write instead of several. Tags the write with a revision so our own echo
   // coming back through the listener doesn't trigger a needless re-render.
+  let writePending = false;
+
+  // Fires the queued write right now (used when switching rosters, or when the
+  // page is closing) instead of waiting out the debounce — and captures the
+  // target ref/rev up front so it can't be redirected if the roster changes
+  // again while the write is still in flight.
+  async function flushPendingWrite(){
+    if(!pushTimer) return;
+    clearTimeout(pushTimer);
+    pushTimer = null;
+    if(!fbRef) { writePending = false; return; }
+    const targetRef = fbRef;
+    const targetRosterId = currentRosterId;
+    lastPushedRev = Date.now();
+    state._rev = lastPushedRev;
+    try{
+      await targetRef.set(state);
+      touchRosterIndexEntry(targetRosterId);
+    }catch(e){
+      setStatus('Save failed — check your connection', false);
+    }
+    writePending = false;
+  }
+  window.addEventListener('beforeunload', () => {
+    if(pushTimer) flushPendingWrite(); // best-effort — browsers don't guarantee async work finishes here
+  });
+
   function pushStateToFirebase(){
     if(!fbRef) return;
+    writePending = true;
     clearTimeout(pushTimer);
+    const targetRef = fbRef; // captured now, so a mid-debounce roster switch can't redirect this write
+    const targetRosterId = currentRosterId;
     pushTimer = setTimeout(async () => {
+      pushTimer = null;
       setStatus('Saving…', true);
       lastPushedRev = Date.now();
       state._rev = lastPushedRev;
       try{
-        await fbRef.set(state);
-        touchRosterIndexEntry(currentRosterId);
+        await targetRef.set(state);
+        touchRosterIndexEntry(targetRosterId);
       }catch(e){
         setStatus('Save failed — check your connection', false);
       }
+      writePending = false;
     }, 300);
   }
 
@@ -646,6 +678,7 @@
 
   let lastRosterIndexData = {};
   let showHiddenRosters = false;
+  let defaultRosterId = null;
 
   function renderRosterSwitcher(indexData){
     lastRosterIndexData = indexData || {};
@@ -663,7 +696,8 @@
     entries.forEach(([id, info]) => {
       const opt = document.createElement('option');
       opt.value = id;
-      opt.textContent = (info && info.name) ? info.name : id;
+      const label = (info && info.name) ? info.name : id;
+      opt.textContent = id === defaultRosterId ? ('★ ' + label) : label;
       if(id === currentRosterId) opt.selected = true;
       sel.appendChild(opt);
     });
@@ -679,6 +713,24 @@
     return baseId + '-' + n;
   }
 
+  // Case/whitespace-insensitive check so "Term 3 2026" and "term 3 2026 " count
+  // as the same name. `excludeId` lets a rename ignore the roster's own entry.
+  function rosterNameExists(name, excludeId){
+    const norm = name.trim().toLowerCase();
+    return Object.entries(lastRosterIndexData).some(([id, info]) =>
+      id !== excludeId && ((info && info.name) || id).trim().toLowerCase() === norm
+    );
+  }
+  // Keeps re-prompting with the same message until the person gives a unique
+  // name or cancels (returns null). `initial` seeds the prompt's default text.
+  function promptUniqueRosterName(promptText, initial, excludeId){
+    let name = window.prompt(promptText, initial);
+    while(name !== null && name.trim() && rosterNameExists(name.trim(), excludeId)){
+      name = window.prompt(`"${name.trim()}" is already in use — please choose a different name:`, name.trim());
+    }
+    return (name && name.trim()) ? name.trim() : null;
+  }
+
   function renderRosterManagePanel(){
     const listEl = document.getElementById('rosterManageList');
     if(!listEl) return;
@@ -692,14 +744,15 @@
     entries.forEach(([id, info]) => {
       const hidden = !!(info && info.hidden);
       if(hidden && !showHiddenRosters && id !== currentRosterId) return;
+      const isDefault = id === defaultRosterId;
 
       const row = document.createElement('div');
       row.className = 'roster-row' + (hidden ? ' is-hidden' : '') + (id === currentRosterId ? ' is-current' : '');
 
       const nameEl = document.createElement('span');
       nameEl.className = 'roster-row-name';
-      nameEl.textContent = (info && info.name) ? info.name : id;
-      nameEl.title = (info && info.name) ? info.name : id;
+      nameEl.textContent = (isDefault ? '★ ' : '') + ((info && info.name) ? info.name : id);
+      nameEl.title = isDefault ? 'Default — used as the starting point for new rosters' : ((info && info.name) ? info.name : id);
       row.appendChild(nameEl);
 
       const renameBtn = document.createElement('button');
@@ -711,6 +764,12 @@
       copyBtn.type = 'button'; copyBtn.className = 'roster-row-btn'; copyBtn.textContent = 'Copy';
       copyBtn.addEventListener('click', () => copyRoster(id, (info && info.name) || id));
       row.appendChild(copyBtn);
+
+      const defaultBtn = document.createElement('button');
+      defaultBtn.type = 'button'; defaultBtn.className = 'roster-row-btn'; defaultBtn.textContent = isDefault ? 'Default ✓' : 'Set as Default';
+      defaultBtn.disabled = isDefault;
+      defaultBtn.addEventListener('click', () => setDefaultRoster(id));
+      row.appendChild(defaultBtn);
 
       const hideBtn = document.createElement('button');
       hideBtn.type = 'button'; hideBtn.className = 'roster-row-btn'; hideBtn.textContent = hidden ? 'Unhide' : 'Hide';
@@ -730,31 +789,50 @@
     }
   }
 
+  function setDefaultRoster(rosterId){
+    firebase.database().ref('defaultRosterId').set(rosterId).catch(() => {
+      showFlash('Could not set the default roster — check your connection.');
+    });
+  }
+
   function renameRoster(rosterId, currentName){
-    const name = window.prompt('New name for "' + currentName + '":', currentName);
-    if(!name || !name.trim() || name.trim() === currentName) return;
-    firebase.database().ref('rosterIndex/' + rosterId).update({ name: name.trim() }).catch(() => {
+    const name = promptUniqueRosterName('New name for "' + currentName + '":', currentName, rosterId);
+    if(!name || name === currentName) return;
+    firebase.database().ref('rosterIndex/' + rosterId).update({ name }).catch(() => {
       showFlash('Rename failed — check your connection.');
     });
   }
 
-  async function copyRoster(sourceId, sourceName){
-    const name = window.prompt('Name for the copy of "' + sourceName + '":', sourceName + ' copy');
-    if(!name || !name.trim()) return;
-    const newId = uniqueRosterId(slugifyRosterName(name));
-    setStatus('Copying roster…', true);
+  // Shared by "+ New" (seeds from the designated default roster) and "Copy"
+  // (seeds from whichever roster you clicked Copy on). Falls back to the
+  // built-in demo data if there's no source to copy from yet.
+  async function createRosterFrom(sourceRosterId, newName){
+    const newId = uniqueRosterId(slugifyRosterName(newName));
+    setStatus('Creating roster…', true);
     try{
-      const snap = await firebase.database().ref('rosters/' + sourceId).once('value');
-      const data = snap.val();
-      if(!data){ showFlash('Could not read that roster to copy it.'); return; }
-      const copy = JSON.parse(JSON.stringify(data));
-      copy._rev = 0;
-      await firebase.database().ref('rosters/' + newId).set(copy);
-      await firebase.database().ref('rosterIndex/' + newId).set({ name: name.trim(), updatedAt: Date.now() });
-      connectToRoster(newId);
+      let seedData = null;
+      if(sourceRosterId){
+        const snap = await firebase.database().ref('rosters/' + sourceRosterId).once('value');
+        seedData = snap.val();
+      }
+      if(seedData){
+        const copy = JSON.parse(JSON.stringify(seedData));
+        copy._rev = 0;
+        await firebase.database().ref('rosters/' + newId).set(copy);
+        await firebase.database().ref('rosterIndex/' + newId).set({ name: newName, updatedAt: Date.now() });
+        connectToRoster(newId);
+      } else {
+        connectToRoster(newId, newName); // no source available — falls back to the built-in demo data
+      }
     }catch(e){
-      showFlash('Copy failed — check your connection.');
+      showFlash('Could not create the roster — check your connection.');
     }
+  }
+
+  async function copyRoster(sourceId, sourceName){
+    const name = promptUniqueRosterName('Name for the copy of "' + sourceName + '":', sourceName + ' copy', null);
+    if(!name) return;
+    await createRosterFrom(sourceId, name);
   }
 
   function setRosterHidden(rosterId, hidden){
@@ -771,6 +849,9 @@
       firebase.database().ref('rosters/' + rosterId).remove(),
       firebase.database().ref('rosterIndex/' + rosterId).remove()
     ]).then(() => {
+      if(rosterId === defaultRosterId){
+        firebase.database().ref('defaultRosterId').remove().catch(() => {});
+      }
       if(rosterId === currentRosterId){
         const nextId = remaining[0] || 'default';
         connectToRoster(nextId);
@@ -783,7 +864,8 @@
   // Detaches from whichever roster we were on (if any) and attaches to a new
   // one, seeding it with the current default demo data if it doesn't exist
   // yet — which is also how a brand-new roster gets "created" here.
-  function connectToRoster(rosterId, displayName){
+  async function connectToRoster(rosterId, displayName){
+    await flushPendingWrite(); // make sure any edit still queued lands on the OLD roster before we leave it
     if(fbRef) fbRef.off();
     currentRosterId = rosterId;
     lastPushedRev = 0; // this rev tracks "my last write to the CURRENTLY connected roster" —
@@ -797,6 +879,12 @@
       const remote = snap.val();
       if(remote && remote._rev === lastPushedRev){
         setStatus('Synced — shared with everyone on this roster', false);
+        return;
+      }
+      if(writePending){
+        // We have a local edit queued to save — don't let someone else's change
+        // erase it out from under the person mid-edit. Once our write lands,
+        // the next update (including anything we skipped) is picked up normally.
         return;
       }
       if(remote && Array.isArray(remote.squads)){
@@ -1160,10 +1248,9 @@
     if(e.target.value && e.target.value !== currentRosterId) connectToRoster(e.target.value);
   });
   document.getElementById('newRosterBtn').addEventListener('click', () => {
-    const name = window.prompt('Name for the new roster (e.g. a squad, team, or gym):');
-    if(!name || !name.trim()) return;
-    const newId = uniqueRosterId(slugifyRosterName(name));
-    connectToRoster(newId, name.trim());
+    const name = promptUniqueRosterName('Name for the new roster (e.g. a squad, team, or gym):', '', null);
+    if(!name) return;
+    createRosterFrom(defaultRosterId, name);
   });
 
   const manageRostersBtn = document.getElementById('manageRostersBtn');
@@ -1204,6 +1291,11 @@
       // populate the roster switcher live, shared across everyone using this project
       firebase.database().ref('rosterIndex').on('value', (snap) => {
         renderRosterSwitcher(snap.val());
+      });
+      // tracks which roster is used as the starting point for "+ New"
+      firebase.database().ref('defaultRosterId').on('value', (snap) => {
+        defaultRosterId = snap.val();
+        renderRosterSwitcher(lastRosterIndexData);
       });
 
       const savedRosterId = localStorage.getItem(LAST_ROSTER_KEY);
@@ -1273,12 +1365,25 @@
     flashTimer = setTimeout(()=> el.classList.remove('show'), 3200);
   }
 
+  // Strips characters that aren't safe in a filename on any OS.
+  function sanitizeFilenamePart(s){
+    return String(s).replace(/[\\/:*?"<>|]/g, '-').trim() || 'Schedule';
+  }
+  function currentRosterDisplayName(){
+    if(firebaseReady) return (lastRosterIndexData[currentRosterId] && lastRosterIndexData[currentRosterId].name) || currentRosterId;
+    return state.gymName || 'Schedule';
+  }
+  function formatDateTimeForFilename(d){
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}-${pad(d.getMinutes())}`;
+  }
   document.getElementById('exportBtn').addEventListener('click', () => {
     const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const stamp = new Date().toISOString().slice(0,10);
-    a.href = url; a.download = `gym-scheduler-backup-${stamp}.json`;
+    const rosterName = sanitizeFilenamePart(currentRosterDisplayName());
+    const stamp = formatDateTimeForFilename(new Date());
+    a.href = url; a.download = `GymOrg - ${rosterName} - ${stamp}.json`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   });
