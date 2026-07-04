@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Level 10 Open — All-Around Results</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --border: #d8d2c4;
+    --border-light: #e8e4d9;
+    --header-bg: #f4f1ea;
+    --text: #3f3a34;
+    --text-muted: #6b6456;
+    --gold: #d4af37;
+    --silver: #b8b8b8;
+    --bronze: #c98a4b;
+    --badge-bg: #efece2;
+    --badge-fg: #5a5346;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 20px;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .toolbar p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0;
+  }
+  select {
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #fff;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .table-container {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 760px;
+  }
+  th, td {
+    padding: 9px 12px;
+    white-space: nowrap;
+    font-size: 13.5px;
+    border-bottom: 1px solid var(--border-light);
+    text-align: left;
+  }
+  th {
+    cursor: pointer;
+    user-select: none;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text);
+    border-bottom: 2px solid var(--border);
+    background: var(--header-bg);
+  }
+  th.no-sort { cursor: default; }
+  th .th-inner {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .sort-icon { opacity: 0.35; font-size: 11px; }
+  .sort-icon.active { opacity: 1; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: var(--badge-bg);
+    color: var(--badge-fg);
+    font-weight: 700;
+    font-size: 12px;
+  }
+  .badge.gold { background: var(--gold); color: #fff; }
+  .badge.silver { background: var(--silver); color: #fff; }
+  .badge.bronze { background: var(--bronze); color: #fff; }
+  .score-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .score-text {
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+  .dash { color: #b7b0a0; }
+  .name-cell { font-weight: 600; }
+  .state-cell { color: var(--text-muted); }
+  .total-cell { font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="toolbar">
+    <p>Level 10 Open — All-Around. Click any column header to sort. Numbers shown per apparatus are that gymnast's <strong>rank</strong> on that event.</p>
+    <select id="daySelect"></select>
+  </div>
+  <div class="table-container">
+    <table>
+      <thead id="tableHead"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const DAY1 = [
+  { name: "Glendinning, Saxon", state: "NSW", bib: 123, floor: 11.566, pommel: 12.700, rings: 11.300, vault: 12.600, pbars: 11.633, hbar: 11.033 },
+  { name: "Thomas, Minato", state: "NSW", bib: 121, floor: 12.233, pommel: 11.733, rings: 10.966, vault: 12.733, pbars: 11.400, hbar: 11.166 },
+  { name: "Olsen, Jack", state: "QLD", bib: 189, floor: 11.000, pommel: 11.000, rings: 11.533, vault: 13.433, pbars: 12.233, hbar: 10.900 },
+  { name: "Evanoff, Nicholas", state: "NSW", bib: 124, floor: 12.633, pommel: 11.466, rings: 11.033, vault: 12.433, pbars: 10.633, hbar: 10.566 },
+  { name: "Gray, Kobi", state: "TAS", bib: 278, floor: 11.566, pommel: 10.733, rings: 11.566, vault: 12.400, pbars: 11.833, hbar: 10.566 },
+  { name: "Middleton, Oska", state: "QLD", bib: 191, floor: 11.366, pommel: 11.233, rings: 11.533, vault: 12.733, pbars: 10.966, hbar: 10.766 },
+  { name: "Ainley, George", state: "VIC", bib: 289, floor: 11.233, pommel: 10.633, rings: 11.500, vault: 12.466, pbars: 11.300, hbar: 11.233 },
+  { name: "Arapoglou, Zane", state: "VIC", bib: 290, floor: 11.600, pommel: 12.300, rings: 10.066, vault: 12.166, pbars: 11.700, hbar: 10.533 },
+  { name: "Griffiths, Fletcher", state: "QLD", bib: 190, floor: 11.533, pommel: 11.466, rings: 11.100, vault: 11.433, pbars: 11.000, hbar: 10.800 },
+  { name: "Higgins, Harrison", state: "VIC", bib: 292, floor: 11.433, pommel: 11.300, rings: 10.666, vault: 11.633, pbars: 11.400, hbar: 10.833 },
+  { name: "Pryce, Cody", state: "WA", bib: 342, floor: 10.366, pommel: 10.600, rings: 11.166, vault: 12.733, pbars: 11.266, hbar: 10.766 },
+  { name: "Whitehead, Torin", state: "VIC", bib: 294, floor: 10.800, pommel: 10.766, rings: 10.900, vault: 11.700, pbars: 11.300, hbar: 10.933 },
+  { name: "Brooks, Kodi", state: "QLD", bib: 192, floor: 11.633, pommel: 10.100, rings: 11.100, vault: 11.766, pbars: 10.233, hbar: 11.033 },
+  { name: "Davies, Jake", state: "NSW", bib: 122, floor: 11.266, pommel: 11.166, rings: 9.766, vault: 12.366, pbars: 10.233, hbar: 10.766 },
+  { name: "Mychajliw, Hayden", state: "SA", bib: 253, floor: 10.600, pommel: 8.900, rings: 10.933, vault: 12.433, pbars: 11.333, hbar: 10.900 },
+  { name: "Saro, Thomas", state: "QLD", bib: 187, floor: 11.166, pommel: 9.733, rings: 9.700, vault: 11.300, pbars: 11.733, hbar: 10.866 },
+  { name: "Williams, Alexander", state: "WA", bib: 344, floor: 11.333, pommel: 10.133, rings: 10.666, vault: 12.700, pbars: 9.433, hbar: 9.533 },
+  { name: "Cooper, Daniel", state: "WA", bib: 341, floor: 11.133, pommel: 11.800, rings: 6.933, vault: 12.700, pbars: 9.200, hbar: 11.600 },
+  { name: "Smith, Riley", state: "QLD", bib: 186, floor: 11.133, pommel: 9.000, rings: 9.866, vault: 11.733, pbars: 10.833, hbar: 9.166 },
+  { name: "O'Donnell, Finbar", state: "QLD", bib: 193, floor: 12.566, pommel: 10.533, rings: null, vault: 11.466, pbars: 11.000, hbar: null },
+  { name: "Jones, Liam", state: "VIC", bib: 293, floor: 9.166, pommel: 11.500, rings: null, vault: 11.766, pbars: 11.233, hbar: null },
+  { name: "Tait, Dylan", state: "QLD", bib: 194, floor: 12.200, pommel: 11.266, rings: null, vault: 11.433, pbars: null, hbar: null },
+  { name: "Hart, Josh", state: "VIC", bib: 291, floor: 9.900, pommel: null, rings: null, vault: 11.500, pbars: null, hbar: null },
+  { name: "Petrovic, Phoenix", state: "VIC", bib: 288, floor: 11.900, pommel: null, rings: null, vault: null, pbars: null, hbar: null },
+];
+
+const DAY2 = [
+  { name: "Thomas, Minato", state: "NSW", bib: 121, floor: 12.400, pommel: 11.166, rings: 11.000, vault: 12.900, pbars: 11.933, hbar: 11.500 },
+  { name: "Glendinning, Saxon", state: "NSW", bib: 123, floor: 12.333, pommel: 11.900, rings: 10.833, vault: 12.766, pbars: 11.600, hbar: 10.966 },
+  { name: "Cooper, Daniel", state: "WA", bib: 341, floor: 12.133, pommel: 11.500, rings: 10.433, vault: 12.733, pbars: 11.166, hbar: 11.833 },
+  { name: "Olsen, Jack", state: "QLD", bib: 189, floor: 12.000, pommel: 10.800, rings: 11.433, vault: 12.900, pbars: 11.266, hbar: 11.066 },
+  { name: "Evanoff, Nicholas", state: "NSW", bib: 124, floor: 12.833, pommel: 10.633, rings: 10.833, vault: 12.566, pbars: 11.533, hbar: 10.566 },
+  { name: "Mychajliw, Hayden", state: "SA", bib: 253, floor: 10.566, pommel: 11.700, rings: 11.500, vault: 12.133, pbars: 12.066, hbar: 10.866 },
+  { name: "Gray, Kobi", state: "TAS", bib: 278, floor: 10.633, pommel: 10.666, rings: 11.766, vault: 12.600, pbars: 11.833, hbar: 10.733 },
+  { name: "Whitehead, Torin", state: "VIC", bib: 294, floor: 11.233, pommel: 10.600, rings: 11.133, vault: 12.500, pbars: 11.600, hbar: 11.133 },
+  { name: "Arapoglou, Zane", state: "VIC", bib: 290, floor: 11.433, pommel: 10.233, rings: 10.600, vault: 12.366, pbars: 11.833, hbar: 10.733 },
+  { name: "Pryce, Cody", state: "WA", bib: 342, floor: 10.500, pommel: 11.000, rings: 11.166, vault: 12.733, pbars: 10.300, hbar: 11.400 },
+  { name: "Higgins, Harrison", state: "VIC", bib: 292, floor: 11.500, pommel: 10.933, rings: 10.800, vault: 11.866, pbars: 10.966, hbar: 10.900 },
+  { name: "Williams, Alexander", state: "WA", bib: 344, floor: 11.700, pommel: 10.166, rings: 10.833, vault: 12.700, pbars: 11.366, hbar: 10.100 },
+  { name: "Griffiths, Fletcher", state: "QLD", bib: 190, floor: 11.800, pommel: 10.833, rings: 9.166, vault: 11.466, pbars: 11.600, hbar: 11.400 },
+  { name: "Middleton, Oska", state: "QLD", bib: 191, floor: 10.800, pommel: 10.933, rings: 11.400, vault: 12.133, pbars: 10.000, hbar: 10.933 },
+  { name: "Brooks, Kodi", state: "QLD", bib: 192, floor: 11.600, pommel: 10.666, rings: 9.700, vault: 11.400, pbars: 11.366, hbar: 11.133 },
+  { name: "Saro, Thomas", state: "QLD", bib: 187, floor: 11.266, pommel: 10.000, rings: 10.266, vault: 11.800, pbars: 11.700, hbar: 10.766 },
+  { name: "Ainley, George", state: "VIC", bib: 289, floor: 11.800, pommel: 10.666, rings: 9.000, vault: 12.366, pbars: 10.600, hbar: 10.633 },
+  { name: "Davies, Jake", state: "NSW", bib: 122, floor: 11.466, pommel: 5.800, rings: 10.366, vault: 12.266, pbars: 11.433, hbar: 11.333 },
+  { name: "Smith, Riley", state: "QLD", bib: 186, floor: 11.100, pommel: 8.400, rings: 9.700, vault: 11.200, pbars: 10.966, hbar: 3.166 },
+  { name: "O'Donnell, Finbar", state: "QLD", bib: 193, floor: 10.500, pommel: 10.266, rings: null, vault: 11.466, pbars: 11.266, hbar: null },
+  { name: "Jones, Liam", state: "VIC", bib: 293, floor: 8.900, pommel: 11.633, rings: null, vault: 11.266, pbars: 11.600, hbar: null },
+  { name: "Tait, Dylan", state: "QLD", bib: 194, floor: 12.000, pommel: 11.233, rings: null, vault: 12.533, pbars: null, hbar: null },
+  { name: "Hart, Josh", state: "VIC", bib: 291, floor: 11.200, pommel: null, rings: null, vault: 10.466, pbars: null, hbar: null },
+  { name: "Petrovic, Phoenix", state: "VIC", bib: 288, floor: 10.966, pommel: null, rings: null, vault: null, pbars: null, hbar: null },
+];
+
+const DAYS = { "Round 1": DAY1, "Round 2": DAY2 };
+
+const APPARATUS = [
+  { key: "floor", label: "Floor" },
+  { key: "pommel", label: "Pommel Horse" },
+  { key: "rings", label: "Rings" },
+  { key: "vault", label: "Vault" },
+  { key: "pbars", label: "Parallel Bars" },
+  { key: "hbar", label: "High Bar" },
+];
+
+let state = {
+  day: "Round 1",
+  sortKey: "total",
+  sortDir: "asc",
+};
+
+function computeTotal(row) {
+  return APPARATUS.reduce((sum, a) => sum + (row[a.key] ?? 0), 0);
+}
+
+function rankApparatus(data, key) {
+  const scored = data
+    .map((row, idx) => ({ idx, score: row[key] }))
+    .filter((r) => r.score != null)
+    .sort((a, b) => b.score - a.score);
+
+  const ranks = new Array(data.length).fill(null);
+  let i = 0;
+  while (i < scored.length) {
+    let j = i;
+    while (j + 1 < scored.length && scored[j + 1].score === scored[i].score) j++;
+    const rank = i + 1;
+    for (let k = i; k <= j; k++) ranks[scored[k].idx] = rank;
+    i = j + 1;
+  }
+  return ranks;
+}
+
+function getEnriched() {
+  const raw = DAYS[state.day];
+  const withTotal = raw.map((r) => ({ ...r, total: computeTotal(r) }));
+  const rankMaps = {};
+  APPARATUS.forEach((a) => {
+    rankMaps[a.key] = rankApparatus(withTotal, a.key);
+  });
+  const totalRanks = rankApparatus(withTotal, "total");
+  return withTotal.map((row, idx) => {
+    const ranks = {};
+    APPARATUS.forEach((a) => {
+      ranks[a.key] = rankMaps[a.key][idx];
+    });
+    ranks.total = totalRanks[idx];
+    return { ...row, ranks };
+  });
+}
+
+function getSorted() {
+  const enriched = getEnriched();
+  const copy = [...enriched];
+  copy.sort((a, b) => {
+    let av, bv;
+    if (state.sortKey === "name") {
+      const cmp = a.name.localeCompare(b.name);
+      return state.sortDir === "asc" ? cmp : -cmp;
+    } else if (state.sortKey === "total") {
+      av = a.total;
+      bv = b.total;
+    } else {
+      av = a.ranks[state.sortKey] ?? Infinity;
+      bv = b.ranks[state.sortKey] ?? Infinity;
+    }
+    const cmp = av - bv;
+    return state.sortDir === "asc" ? cmp : -cmp;
+  });
+  return copy;
+}
+
+function badgeHtml(rank, score) {
+  if (rank == null) return '<span class="dash">—</span>';
+  let cls = "badge";
+  if (rank === 1) cls += " gold";
+  else if (rank === 2) cls += " silver";
+  else if (rank === 3) cls += " bronze";
+  return `
+    <span class="score-cell">
+      <span class="${cls}">${rank}</span>
+      <span class="score-text">(${score.toFixed(3)})</span>
+    </span>
+  `;
+}
+
+function sortIconHtml(colKey) {
+  if (state.sortKey !== colKey) return '<span class="sort-icon">⇅</span>';
+  return `<span class="sort-icon active">${state.sortDir === "asc" ? "▲" : "▼"}</span>`;
+}
+
+function renderHead() {
+  const thead = document.getElementById("tableHead");
+  thead.innerHTML = `
+    <tr>
+      <th data-sort="total"><div class="th-inner">Place ${sortIconHtml("total")}</div></th>
+      <th data-sort="name"><div class="th-inner">Gymnast ${sortIconHtml("name")}</div></th>
+      <th class="no-sort">State</th>
+      ${APPARATUS.map(
+        (a) => `<th data-sort="${a.key}"><div class="th-inner">${a.label} ${sortIconHtml(a.key)}</div></th>`
+      ).join("")}
+      <th class="no-sort">Total</th>
+    </tr>
+  `;
+  thead.querySelectorAll("th[data-sort]").forEach((th) => {
+    th.addEventListener("click", () => {
+      const key = th.getAttribute("data-sort");
+      if (state.sortKey === key) {
+        state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+      } else {
+        state.sortKey = key;
+        state.sortDir = "asc";
+      }
+      render();
+    });
+  });
+}
+
+function renderBody() {
+  const tbody = document.getElementById("tableBody");
+  const sorted = getSorted();
+  tbody.innerHTML = sorted
+    .map(
+      (row) => `
+    <tr>
+      <td class="total-cell">${badgeHtml(row.ranks.total, row.total)}</td>
+      <td class="name-cell">${row.name}</td>
+      <td class="state-cell">${row.state}</td>
+      ${APPARATUS.map((a) => `<td>${badgeHtml(row.ranks[a.key], row[a.key])}</td>`).join("")}
+      <td class="total-cell">${row.total.toFixed(3)}</td>
+    </tr>
+  `
+    )
+    .join("");
+}
+
+function renderDaySelect() {
+  const select = document.getElementById("daySelect");
+  if (select.options.length === 0) {
+    Object.keys(DAYS).forEach((d) => {
+      const opt = document.createElement("option");
+      opt.value = d;
+      opt.textContent = d;
+      select.appendChild(opt);
+    });
+    select.value = state.day;
+    select.addEventListener("change", (e) => {
+      state.day = e.target.value;
+      render();
+    });
+  }
+}
+
+function render() {
+  renderDaySelect();
+  renderHead();
+  renderBody();
+}
+
+render();
+</script>
+</body>
+</html>
