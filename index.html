@@ -57,6 +57,8 @@
   .admin-unlock-input{flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-family:'Inter',sans-serif;font-size:13px;}
   .admin-unlock-btn{padding:8px 14px;font-size:11px;}
   .admin-unlock-error{color:var(--mat-red);font-size:12px;margin:10px 0 0;}
+  .admin-lock-btn-inline{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;background:var(--chalk);border:1px solid var(--line);border-radius:100px;padding:4px 10px;cursor:pointer;color:var(--slate);vertical-align:middle;margin-left:4px;}
+  .admin-lock-btn-inline:hover{border-color:var(--ink);color:var(--ink);}
 
   /* ---- shared-password access gate ---- */
   .access-gate{position:fixed;inset:0;z-index:1000;background:linear-gradient(135deg,var(--ink) 0%,var(--ink-2) 100%);display:flex;align-items:center;justify-content:center;padding:20px;}
@@ -356,7 +358,7 @@
         <p class="admin-unlock-error" style="display:none;">Incorrect password.</p>
       </div>
       <div class="admin-real-content">
-        <p class="panel-title">Program Details <span class="admin-badge">ADMIN ONLY</span></p>
+        <p class="panel-title">Program Details <span class="admin-badge">ADMIN ONLY</span> <button type="button" class="admin-lock-btn-inline">🔒 Lock</button></p>
         <p class="panel-desc">Shown in the header as "Gym Org Pro - {Gym Name} - {Location}". Leave either blank to omit it.</p>
         <div style="display:flex;gap:20px;flex-wrap:wrap;">
           <label style="display:flex;flex-direction:column;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);">
@@ -382,8 +384,8 @@
         <p class="admin-unlock-error" style="display:none;">Incorrect password.</p>
       </div>
       <div class="admin-real-content">
-        <p class="panel-title">Rotation Settings <span class="admin-badge">ADMIN ONLY</span></p>
-        <p class="panel-desc">How long each rotation slot lasts. All session durations round to the nearest multiple of this value. <strong>Changing it clears every existing station allocation across every day</strong> — the time slots themselves shift, so old picks no longer line up.</p>
+        <p class="panel-title">Rotation Settings <span class="admin-badge">ADMIN ONLY</span> <button type="button" class="admin-lock-btn-inline">🔒 Lock</button></p>
+        <p class="panel-desc">How long each rotation slot lasts. All session durations round to the nearest multiple of this value. Existing station picks carry over automatically: <strong>shrinking</strong> this value is lossless (each pick fills the new, smaller slots it spans), while <strong>growing</strong> it combines multiple slots into one and keeps only the earliest pick where they conflict.</p>
         <label style="display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--slate);">
           Rotation length
           <input type="number" id="rotationLengthInput" min="5" max="60" step="1" style="width:64px;padding:7px;border:1px solid var(--line);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:13px;">
@@ -541,7 +543,7 @@
   const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const PALETTE = ['#B5292E','#1F7A5C','#C9A227','#2A5CAA','#7A4FA3','#B5602E','#3E8E8E','#8C3F63','#4B7B2A','#A6437A'];
   const STORAGE_KEY = 'gym-scheduler-state-v4';
-  const APP_VERSION = 'v2.3';
+  const APP_VERSION = 'v2.4';
   document.getElementById('versionTag').textContent = ' - ' + APP_VERSION.toUpperCase();
 
   // ---------------- shared-password access gate ----------------
@@ -608,6 +610,13 @@
     }
     btn.addEventListener('click', attemptAdminUnlock);
     input.addEventListener('keydown', (e) => { if(e.key === 'Enter') attemptAdminUnlock(); });
+  });
+  document.querySelectorAll('.admin-lock-btn-inline').forEach(btn => {
+    btn.addEventListener('click', () => {
+      localStorage.removeItem(ADMIN_UNLOCK_KEY);
+      applyAdminUnlockUI();
+      showFlash('Admin settings locked again on this browser.');
+    });
   });
   applyAdminUnlockUI();
 
@@ -1541,19 +1550,31 @@
   document.getElementById('rotationLengthInput').addEventListener('change', (e) => {
     const val = Math.max(5, Math.min(60, Math.round(Number(e.target.value)) || state.rotationLength));
     if(val === state.rotationLength) { e.target.value = val; return; }
+
+    const oldLength = state.rotationLength;
     const hasAllocations = Object.keys(state.allocations || {}).length > 0;
-    if(hasAllocations){
+    const growing = val > oldLength;
+
+    if(hasAllocations && growing){
       const ok = window.confirm(
-        `Changing the rotation length to ${val} minutes will clear EVERY station allocation across every day in the rotation — the time-slot boundaries shift, so existing picks no longer line up.\n\nThis cannot be undone. Continue?`
+        `Increasing the rotation length from ${oldLength} to ${val} minutes combines multiple existing time slots into each new, longer slot. Where a squad had different stations across that combined window, only the earliest is kept — some detail may be lost.\n\nContinue?`
       );
       if(!ok){
-        e.target.value = state.rotationLength;
+        e.target.value = oldLength;
         return;
       }
     }
+
+    state.allocations = remapAllocationsForRotationLength(state.allocations, oldLength, val);
     state.rotationLength = val;
-    state.allocations = {}; // old tick indices no longer correspond to the same clock times
-    showFlash(`Rotation length set to ${val} min — station allocations were cleared since slot boundaries changed.`);
+
+    if(hasAllocations){
+      showFlash(growing
+        ? `Rotation length set to ${val} min — existing picks were combined into the new, longer slots (some detail may have merged).`
+        : `Rotation length set to ${val} min — existing picks were carried over into the new, finer slots.`);
+    } else {
+      showFlash(`Rotation length set to ${val} min.`);
+    }
     commit();
   });
 
@@ -2251,6 +2272,44 @@
     } else {
       delete state.allocations[dayIndex][tick][squadId];
     }
+  }
+
+  // Converts existing allocations from the old tick numbering to the new one
+  // instead of discarding them, since a "tick" is just (minutes / rotationLength)
+  // — the underlying clock time each pick belongs to hasn't changed, only which
+  // tick number represents it.
+  //
+  // Shrinking the rotation length (finer slots) is lossless: each old tick's
+  // pick is copied into every new, smaller tick within its time span.
+  // Growing it (coarser slots) can merge several old ticks into one new tick;
+  // when a squad had different stations across that merged window, only the
+  // earliest is kept — there's no way to represent more than one station per
+  // slot, so that detail is genuinely lost, not just relocated.
+  function remapAllocationsForRotationLength(oldAllocations, oldLength, newLength){
+    const newAllocations = {};
+    Object.keys(oldAllocations).forEach(dayIndexStr => {
+      const oldDay = oldAllocations[dayIndexStr];
+      const oldTicks = Object.keys(oldDay).map(Number).sort((a, b) => a - b);
+      oldTicks.forEach(oldTick => {
+        const sqMap = oldDay[oldTick];
+        const oldStartMin = oldTick * oldLength;
+        const oldEndMin = oldStartMin + oldLength;
+        const firstNewTick = Math.floor(oldStartMin / newLength);
+        const lastNewTick = Math.floor((oldEndMin - 1) / newLength);
+        for(let nt = firstNewTick; nt <= lastNewTick; nt++){
+          if(!newAllocations[dayIndexStr]) newAllocations[dayIndexStr] = {};
+          if(!newAllocations[dayIndexStr][nt]) newAllocations[dayIndexStr][nt] = {};
+          Object.keys(sqMap).forEach(squadId => {
+            // earliest old tick to reach a given new tick wins, so a merge
+            // keeps "what the squad was on at the start of the new slot"
+            if(newAllocations[dayIndexStr][nt][squadId] === undefined){
+              newAllocations[dayIndexStr][nt][squadId] = sqMap[squadId];
+            }
+          });
+        }
+      });
+    });
+    return newAllocations;
   }
 
   function renderDayPickerRota(){
