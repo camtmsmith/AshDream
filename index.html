@@ -48,6 +48,16 @@
   .roster-row-btn.danger:hover{background:#FBEAEA;}
   .roster-manage-show-hidden{display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);margin-top:10px;padding-top:10px;border-top:1px solid var(--line);cursor:pointer;}
 
+  /* ---- simple RBAC: admin-only panels ---- */
+  .admin-badge{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.05em;background:var(--gold-soft);color:#8A6D10;border-radius:100px;padding:3px 8px;margin-left:8px;vertical-align:middle;text-transform:uppercase;}
+  .admin-real-content{display:none;}
+  .panel.admin-gated.admin-unlocked .admin-locked-content{display:none;}
+  .panel.admin-gated.admin-unlocked .admin-real-content{display:block;}
+  .admin-unlock-form{display:flex;gap:8px;align-items:center;margin-top:12px;max-width:320px;}
+  .admin-unlock-input{flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-family:'Inter',sans-serif;font-size:13px;}
+  .admin-unlock-btn{padding:8px 14px;font-size:11px;}
+  .admin-unlock-error{color:var(--mat-red);font-size:12px;margin:10px 0 0;}
+
   /* ---- shared-password access gate ---- */
   .access-gate{position:fixed;inset:0;z-index:1000;background:linear-gradient(135deg,var(--ink) 0%,var(--ink-2) 100%);display:flex;align-items:center;justify-content:center;padding:20px;}
   .access-gate.unlocked{display:none;}
@@ -335,29 +345,51 @@
       <button type="button" class="subnav-btn" data-target="panel-capacity-exceptions">Capacity Exceptions</button>
     </div>
 
-    <div class="panel" id="panel-program-details">
-      <p class="panel-title">Program Details</p>
-      <p class="panel-desc">Shown in the header as "Gym Org Pro - {Gym Name} - {Location}". Leave either blank to omit it.</p>
-      <div style="display:flex;gap:20px;flex-wrap:wrap;">
-        <label style="display:flex;flex-direction:column;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);">
-          Gym name
-          <input type="text" id="gymNameInput" placeholder="e.g. College Gymnastics" style="padding:8px;border:1px solid var(--line);border-radius:6px;font-family:'Inter',sans-serif;font-size:13px;min-width:220px;">
-        </label>
-        <label style="display:flex;flex-direction:column;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);">
-          Location
-          <input type="text" id="gymLocationInput" placeholder="e.g. Location X" style="padding:8px;border:1px solid var(--line);border-radius:6px;font-family:'Inter',sans-serif;font-size:13px;min-width:220px;">
-        </label>
+    <div class="panel admin-gated" id="panel-program-details">
+      <div class="admin-locked-content">
+        <p class="panel-title">🔒 Program Details <span class="admin-badge">ADMIN ONLY</span></p>
+        <p class="panel-desc">This section is restricted to admin users. Enter the admin password to unlock it.</p>
+        <div class="admin-unlock-form">
+          <input type="password" class="admin-unlock-input" placeholder="Admin password" autocomplete="off">
+          <button type="button" class="header-btn admin-unlock-btn">Unlock</button>
+        </div>
+        <p class="admin-unlock-error" style="display:none;">Incorrect password.</p>
+      </div>
+      <div class="admin-real-content">
+        <p class="panel-title">Program Details <span class="admin-badge">ADMIN ONLY</span></p>
+        <p class="panel-desc">Shown in the header as "Gym Org Pro - {Gym Name} - {Location}". Leave either blank to omit it.</p>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;">
+          <label style="display:flex;flex-direction:column;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);">
+            Gym name
+            <input type="text" id="gymNameInput" placeholder="e.g. College Gymnastics" style="padding:8px;border:1px solid var(--line);border-radius:6px;font-family:'Inter',sans-serif;font-size:13px;min-width:220px;">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);">
+            Location
+            <input type="text" id="gymLocationInput" placeholder="e.g. Location X" style="padding:8px;border:1px solid var(--line);border-radius:6px;font-family:'Inter',sans-serif;font-size:13px;min-width:220px;">
+          </label>
+        </div>
       </div>
     </div>
 
-    <div class="panel" id="panel-rotation-settings">
-      <p class="panel-title">Rotation Settings</p>
-      <p class="panel-desc">How long each rotation slot lasts. All session durations round to the nearest multiple of this value. Changing it clears existing station allocations, since slot boundaries shift.</p>
-      <label style="display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--slate);">
-        Rotation length
-        <input type="number" id="rotationLengthInput" min="5" max="60" step="1" style="width:64px;padding:7px;border:1px solid var(--line);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:13px;">
-        minutes (5–60)
-      </label>
+    <div class="panel admin-gated" id="panel-rotation-settings">
+      <div class="admin-locked-content">
+        <p class="panel-title">🔒 Rotation Settings <span class="admin-badge">ADMIN ONLY</span></p>
+        <p class="panel-desc">This section is restricted to admin users. Enter the admin password to unlock it.</p>
+        <div class="admin-unlock-form">
+          <input type="password" class="admin-unlock-input" placeholder="Admin password" autocomplete="off">
+          <button type="button" class="header-btn admin-unlock-btn">Unlock</button>
+        </div>
+        <p class="admin-unlock-error" style="display:none;">Incorrect password.</p>
+      </div>
+      <div class="admin-real-content">
+        <p class="panel-title">Rotation Settings <span class="admin-badge">ADMIN ONLY</span></p>
+        <p class="panel-desc">How long each rotation slot lasts. All session durations round to the nearest multiple of this value. <strong>Changing it clears every existing station allocation across every day</strong> — the time slots themselves shift, so old picks no longer line up.</p>
+        <label style="display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--slate);">
+          Rotation length
+          <input type="number" id="rotationLengthInput" min="5" max="60" step="1" style="width:64px;padding:7px;border:1px solid var(--line);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:13px;">
+          minutes (5–60)
+        </label>
+      </div>
     </div>
 
     <div class="panel" id="panel-coaching-levels">
@@ -543,6 +575,41 @@
     if(e.key === 'Enter') attemptUnlock();
   });
   checkAccessGate();
+
+  // ---------------- simple RBAC: admin-only panels ----------------
+  // Same "soft deterrent" caveat as the access gate above — this is a UI-level
+  // lock, not real access control. It hides Program Details and Rotation
+  // Settings behind a second password so casual/non-admin users don't stumble
+  // into the most destructive settings, but it doesn't stop someone who reads
+  // the page source. Change ADMIN_PASSWORD below to your own value.
+  const ADMIN_PASSWORD = 'GymOrgProAdmin';
+  const ADMIN_UNLOCK_KEY = 'gym-scheduler-admin-unlocked';
+
+  function applyAdminUnlockUI(){
+    const unlocked = localStorage.getItem(ADMIN_UNLOCK_KEY) === 'true';
+    document.querySelectorAll('.admin-gated').forEach(panel => {
+      panel.classList.toggle('admin-unlocked', unlocked);
+    });
+  }
+  document.querySelectorAll('.admin-gated').forEach(panel => {
+    const input = panel.querySelector('.admin-unlock-input');
+    const btn = panel.querySelector('.admin-unlock-btn');
+    const errorEl = panel.querySelector('.admin-unlock-error');
+    function attemptAdminUnlock(){
+      if(input.value === ADMIN_PASSWORD){
+        localStorage.setItem(ADMIN_UNLOCK_KEY, 'true');
+        applyAdminUnlockUI();
+        errorEl.style.display = 'none';
+      } else {
+        errorEl.style.display = 'block';
+        input.value = '';
+        input.focus();
+      }
+    }
+    btn.addEventListener('click', attemptAdminUnlock);
+    input.addEventListener('keydown', (e) => { if(e.key === 'Enter') attemptAdminUnlock(); });
+  });
+  applyAdminUnlockUI();
 
   // ---------------- optional: live multi-user sync (Firebase Realtime Database) ----------------
   // This app normally saves to Claude.ai's storage, or to this one browser's
@@ -1474,6 +1541,16 @@
   document.getElementById('rotationLengthInput').addEventListener('change', (e) => {
     const val = Math.max(5, Math.min(60, Math.round(Number(e.target.value)) || state.rotationLength));
     if(val === state.rotationLength) { e.target.value = val; return; }
+    const hasAllocations = Object.keys(state.allocations || {}).length > 0;
+    if(hasAllocations){
+      const ok = window.confirm(
+        `Changing the rotation length to ${val} minutes will clear EVERY station allocation across every day in the rotation — the time-slot boundaries shift, so existing picks no longer line up.\n\nThis cannot be undone. Continue?`
+      );
+      if(!ok){
+        e.target.value = state.rotationLength;
+        return;
+      }
+    }
     state.rotationLength = val;
     state.allocations = {}; // old tick indices no longer correspond to the same clock times
     showFlash(`Rotation length set to ${val} min — station allocations were cleared since slot boundaries changed.`);
