@@ -11,6 +11,16 @@ Skills that had a diagram in your original documents show it beside them
 All the content comes from your own level outline documents.
 
 
+ALP PATHWAY (MAG)
+On any MAG apparatus (Floor, Pommel, Rings, Vault, P-Bars, H-Bar) you can switch
+from "Club skills" to "ALP Pathway". This shows the MAG ALP Essential Skills
+matrix: skills grouped by family, each with its difficulty (A/B/C) and a target
+development score (1-4) across ALP Levels 1-9 (ages 6-7 to 16-17). Set the group's
+working level and the list matches their ability - use "± 1 level" or "Full
+pathway" to pull in lower (Support) or higher (Stretch) skills for mixed groups.
+Ticking a pathway skill adds it to the session plan like any other.
+
+
 HOW TO RUN IT
 1. Keep all the files together in this folder (don't move them apart):
       index.html
