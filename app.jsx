@@ -14,6 +14,9 @@ const CHALK_ALP = window.CHALK_ALP || { cols: [], apparatus: {} };
 const GB = window.GymOrgBridge;
 const LIVE = window.ChalkLive; // read-only live connector to GymOrgPro's Firebase (optional; absent = file-only)
 const imgSrc = (f) => "images/" + f;
+const APP_VERSION = "v5.2";
+const MONTHS3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const fmtShortDate = (iso) => { const p = String(iso || "").split("-"); return p.length === 3 ? `${+p[2]} ${MONTHS3[+p[1] - 1]}` : iso; };
 
 const NAVY = "#211a4d";
 const INK = "#1b1930";
@@ -57,6 +60,7 @@ const IconTarget = (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10" />
 const IconClipboard = (p) => <Icon {...p} path={<><rect x="8" y="2" width="8" height="4" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="M12 11h4" /><path d="M12 16h4" /><path d="M8 11h.01" /><path d="M8 16h.01" /></>} />;
 const IconDumbbell = (p) => <Icon {...p} path={<><path d="M17.596 12.768a2 2 0 1 0 2.829-2.829l-1.768-1.767a2 2 0 0 0 2.828-2.829l-2.828-2.828a2 2 0 0 0-2.829 2.828l-1.767-1.768a2 2 0 1 0-2.829 2.829z" /><path d="m2.5 21.5 1.4-1.4" /><path d="m20.1 3.9 1.4-1.4" /><path d="M5.343 21.485a2 2 0 1 0 2.829-2.828l1.767 1.768a2 2 0 1 0 2.829-2.829l-6.364-6.364a2 2 0 1 0-2.829 2.829l1.768 1.767a2 2 0 0 0-2.828 2.829z" /><path d="m9.6 14.4 4.8-4.8" /></>} />;
 const IconUpload = (p) => <Icon {...p} path={<><path d="M12 3v12" /><path d="m17 8-5-5-5 5" /><path d="M5 21h14" /></>} />;
+const IconDownload = (p) => <Icon {...p} path={<><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></>} />;
 const IconRefresh = (p) => <Icon {...p} path={<><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 4v6h-6" /></>} />;
 const IconUsers = (p) => <Icon {...p} path={<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>} />;
 const IconCalendar = (p) => <Icon {...p} path={<><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4" /><path d="M8 2v4" /><path d="M3 10h18" /></>} />;
@@ -116,6 +120,7 @@ function ChalkApp() {
   const [alpIdx, setAlpIdx] = useState(3);
   const [alpFilter, setAlpFilter] = useState("range");
   const [gymorgOpen, setGymorgOpen] = useState(false);
+  const [activeSlot, setActiveSlot] = useState(null); // rotation leg index the selector is adding to
 
   // ---------------- GymOrgPro import state ----------------
   const [gymorg, setGymorg] = useState(null); // parsed backup {gymName,squads,stations,blocks}
@@ -124,6 +129,7 @@ function ChalkApp() {
   const [gSessionIdx, setGSessionIdx] = useState(0); // index into the dated-session list
   const [squadMap, setSquadMap] = useState(() => LS.get("chalk-gymorg-squadmap", {}));
   const [stationMap, setStationMap] = useState(() => LS.get("chalk-gymorg-stationmap", {}));
+  const [headerMap, setHeaderMap] = useState(() => LS.get("chalk-gymorg-headermap", {})); // {squadId: headerId} override; "" = auto-guess
   const [alpMap, setAlpMap] = useState(() => LS.get("chalk-gymorg-alpmap", {}));
   const [prefillMode, setPrefillMode] = useState("fresh"); // fresh | last
   const [gymorgError, setGymorgError] = useState("");
@@ -159,23 +165,59 @@ function ChalkApp() {
   const skillKey = (lvl, sectionName, gi, si) => `${lvl}::${sectionName}::${gi}::${si}`;
   const color = APP_COLORS[tab] || NAVY;
 
+  // ---- Current GymOrgPro session (must precede the slot logic below) -------
+  const gBlock = useMemo(() => gymorg && gymorg.blocks.find((b) => b.id === gBlockId), [gymorg, gBlockId]);
+  const gSquad = useMemo(() => gymorg && gymorg.squads.find((s) => s.id === gSquadId), [gymorg, gSquadId]);
+  const gAllDated = useMemo(() => (gymorg && gBlock) ? GB.datedSessions(gymorg, gBlock) : [], [gymorg, gBlock]);
+  const gSessions = useMemo(() => gSquadId ? GB.datedForSquad(gAllDated, gSquadId) : [], [gAllDated, gSquadId]);
+  const gCurrent = gSessions[gSessionIdx] || gSessions[0] || null;
+  const gLegs = gCurrent ? gCurrent.legs : [];
+
+  // ---- Rotation slots ----------------------------------------------------
+  // A session can visit the same apparatus twice (e.g. Floor 3 AND Floor 1), so
+  // skills are keyed to the ROTATION SLOT they belong to, not just the apparatus.
+  // Slot ids: "W" = warm-up, 0..n = rotation leg index, "X" = picked for an
+  // apparatus that isn't in this rotation, "M" = manual mode (no session).
+  const hasSession = gLegs.length > 0;
+  const legSlotsForTab = useMemo(
+    () => gLegs.map((l, i) => (stationMap[l.stationId] === tab ? i : -1)).filter((i) => i >= 0),
+    [gLegs, stationMap, tab]
+  );
+  // Which slot new ticks land in: the rotation you last clicked "Add" on, else
+  // the first leg on this apparatus, else "X" (apparatus not in the rotation).
+  const targetSlot = !hasSession ? "M"
+    : tab === "Warm-up" ? "W"
+    : (activeSlot !== null && legSlotsForTab.indexOf(activeSlot) !== -1) ? activeSlot
+    : (legSlotsForTab.length ? legSlotsForTab[0] : "X");
+  const slotKey = (base) => `${targetSlot}|${base}`;
+
+  // Where an already-selected skill lives. Entries saved before slots existed
+  // have no .slot, so fall back to matching their apparatus to a leg.
+  function slotOf(v) {
+    if (v.slot !== undefined && v.slot !== null) return v.slot;
+    if (!hasSession) return "M";
+    if (v.section === "Warm-up") return "W";
+    const i = gLegs.findIndex((l) => stationMap[l.stationId] === v.section);
+    return i >= 0 ? i : "X";
+  }
+
   function toggleSkill(sectionName, gi, si, group, skill) {
-    const key = skillKey(level, sectionName, gi, si);
+    const key = slotKey(skillKey(level, sectionName, gi, si));
     setSelected((prev) => {
       const next = { ...prev };
       if (next[key]) delete next[key];
-      else next[key] = { level, section: sectionName, group: group.group, name: skill.name, cues: skill.cues || [], img: skill.img || [], color: APP_COLORS[sectionName] || NAVY };
+      else next[key] = { level, slot: targetSlot, section: sectionName, group: group.group, name: skill.name, cues: skill.cues || [], img: skill.img || [], color: APP_COLORS[sectionName] || NAVY };
       return next;
     });
   }
   function toggleAlpSkill(sectionName, idx, entry, levelLabel) {
-    const key = `ALP::${sectionName}::${idx}`;
+    const key = slotKey(`ALP::${sectionName}::${idx}`);
     setSelected((prev) => {
       const next = { ...prev };
       if (next[key]) delete next[key];
       else {
         const cues = [`Family: ${entry.f}`, `Difficulty: ${entry.d || "—"}`, `Pathway skill (${levelLabel})`];
-        next[key] = { level, section: sectionName, group: entry.f, name: entry.s, cues, img: [], color: APP_COLORS[sectionName] || NAVY, alp: true };
+        next[key] = { level, slot: targetSlot, section: sectionName, group: entry.f, name: entry.s, cues, img: [], color: APP_COLORS[sectionName] || NAVY, alp: true };
       }
       return next;
     });
@@ -187,6 +229,12 @@ function ChalkApp() {
     selectedList.forEach(([id, v]) => { (map[v.section] = map[v.section] || []).push({ id, ...v }); });
     return map;
   }, [selected]);
+  // Skills grouped by rotation slot — this is what the lesson plan renders from.
+  const bySlot = useMemo(() => {
+    const map = {};
+    selectedList.forEach(([id, v]) => { const s = slotOf(v); (map[s] = map[s] || []).push({ id, ...v }); });
+    return map;
+  }, [selected, gLegs, stationMap, hasSession]);
   const orderedSections = useMemo(() => ["Warm-up", ...apparatusList].filter((s) => bySection[s]), [apparatusList, bySection]);
 
   function clearAll() {
@@ -209,47 +257,87 @@ function ChalkApp() {
   function printPlan() {
     const win = window.open("", "_blank");
     if (!win) return;
-    const mins = parseInt(duration) || 0;
-    const stations = orderedSections.filter((s) => s !== "Warm-up");
-    const hasWarm = orderedSections.includes("Warm-up");
-    const warmMins = hasWarm ? 15 : 0;
-    const coolMins = mins > 25 ? 5 : 0;
-    const perStation = stations.length ? Math.max(1, Math.round((mins - warmMins - coolMins) / stations.length)) : 0;
-    const warmRows = hasWarm ? bySection["Warm-up"] : [];
-    let warmHtml = "";
-    for (let i = 0; i < warmRows.length; i += 3) {
-      const cells = [0, 1, 2].map((o) => {
-        const it = warmRows[i + o];
-        return it
-          ? `<td class="wt">${esc(it.name)}${it.group && it.group !== "General" ? `<span class="sub">${esc(it.group)}</span>` : ""}</td><td class="wm"></td>`
-          : `<td class="wt"></td><td class="wm"></td>`;
-      }).join("");
-      warmHtml += `<tr>${cells}</tr>`;
-    }
-    const warmBlock = hasWarm
-      ? `<div class="bar">Warm-up &amp; Preparation${focus ? ` &nbsp;–&nbsp; Focus: ${esc(focus)}` : ""} &nbsp;–&nbsp; ${warmMins} mins</div><table class="warm"><tbody>${warmHtml}</tbody></table>`
-      : "";
-    const circuitsHtml = stations.map((sec, i) => {
-      const c = APP_COLORS[sec] || NAVY;
-      const rows = bySection[sec].map((sk) => `
-        <tr>
-          <td class="eq">${esc(sec)}</td>
-          <td class="sk"><div class="skrow">${sk.img && sk.img.length ? `<img class="thumb" src="${imgSrc(sk.img[0])}"/>` : ""}<span class="skname">${esc(sk.name)}${sk.group && sk.group !== "General" ? `<span class="sub">${esc(sk.group)}</span>` : ""}</span></div></td>
-          <td class="kcp">${(sk.cues || []).length ? `<ul>${sk.cues.map((c2) => `<li>${esc(c2)}</li>`).join("")}</ul>` : ""}</td>
-          <td class="safe"></td>
-        </tr>`).join("");
-      return `<div class="bar" style="background:${c}">Circuit ${i + 1} &nbsp;–&nbsp; ${esc(sec)} &nbsp;–&nbsp; ${perStation} mins</div>
-        <table class="circ"><thead><tr><th class="eq">Equipment</th><th class="sk">Skill</th><th class="kcp">KCP</th><th class="safe">Safety</th></tr></thead><tbody>${rows}</tbody></table>`;
+
+    // Build the circuits from the REAL GymOrgPro rotation when a session is
+    // active: one circuit per rotation leg, using that leg's actual station name
+    // and its actual minutes. Falls back to the manual grouping otherwise.
+    const headerUri = gHeader ? GB.headerDataUri(gHeader) : "";
+    const title = hasSession && gSquad ? gSquad.name : level;
+    const subtitle = hasSession && gMappedLevel && gSquad && gMappedLevel !== gSquad.name ? gMappedLevel : (hasSession ? "" : (focus || ""));
+    const dateStr = hasSession && gCurrent ? `${gCurrent.dow} ${fmtShortDate(gCurrent.date)}` : "__________";
+    const coachStr = hasSession && gCurrent && gCurrent.coachName ? gCurrent.coachName : "__________";
+    const assistStr = hasSession && gCurrent && gCurrent.assistantName ? gCurrent.assistantName : "";
+    const timeStr = hasSession && gCurrent ? `${GB.fmtTime(gCurrent.startTime)}–${GB.fmtTime(gCurrent.endTime)}` : "";
+    const totalMins = hasSession && gCurrent ? gCurrent.duration : (parseInt(duration) || 0);
+
+    const circuits = hasSession
+      ? gLegs.map((leg, i) => ({
+          label: leg.gap ? "Break / free time" : (leg.stationName || "Station"),
+          apparatus: stationMap[leg.stationId] || "",
+          minutes: leg.minutes,
+          skills: bySlot[i] || [],
+          gap: leg.gap,
+        })).filter((c) => !c.gap || c.skills.length)
+      : orderedSections.filter((s) => s !== "Warm-up").map((sec) => ({
+          label: sec, apparatus: sec, minutes: null, skills: bySection[sec] || [], gap: false,
+        }));
+
+    const warmSkills = hasSession ? (bySlot["W"] || []) : (bySection["Warm-up"] || []);
+    const warmStd = ((gymorg && gymorg.warmup) || [])
+      .map((w) => `${(w.name || "").trim()}${w.duration ? ` (${w.duration} min)` : ""}`).filter(Boolean);
+    const warmMins = ((gymorg && gymorg.warmup) || []).reduce((n, w) => n + (Number(w.duration) || 0), 0);
+    const extras = hasSession ? (bySlot["X"] || []) : [];
+    const warmdownItems = ((gymorg && gymorg.warmdown) || [])
+      .map((w) => `${(w.name || "").trim()}${w.duration ? ` (${w.duration} min)` : ""}`).filter(Boolean);
+    const warmdownMins = ((gymorg && gymorg.warmdown) || []).reduce((n, w) => n + (Number(w.duration) || 0), 0);
+
+    const skillRows = (skills, equip) => skills.map((sk) => `
+      <tr>
+        <td class="eq">${esc(equip || sk.section || "")}</td>
+        <td class="sk"><div class="skrow">${sk.img && sk.img.length ? `<img class="thumb" src="${imgSrc(sk.img[0])}"/>` : ""}<span class="skname">${esc(sk.name)}${sk.group && sk.group !== "General" ? `<span class="sub">${esc(sk.group)}</span>` : ""}</span></div></td>
+        <td class="kcp">${(sk.cues || []).length ? `<ul>${sk.cues.map((c2) => `<li>${esc(c2)}</li>`).join("")}</ul>` : ""}</td>
+        <td class="safe"></td>
+      </tr>`).join("");
+
+    const circuitsHtml = circuits.map((c, i) => {
+      const col = APP_COLORS[c.apparatus] || NAVY;
+      const mins = c.minutes != null ? ` &nbsp;–&nbsp; ${c.minutes} mins` : "";
+      const body = c.skills.length
+        ? `<table class="circ"><thead><tr><th class="eq">Equipment</th><th class="sk">Skill</th><th class="kcp">KCP</th><th class="safe">Safety</th></tr></thead><tbody>${skillRows(c.skills, c.label)}</tbody></table>`
+        : `<table class="circ"><thead><tr><th class="eq">Equipment</th><th class="sk">Skill</th><th class="kcp">KCP</th><th class="safe">Safety</th></tr></thead><tbody>${[0, 1, 2].map(() => `<tr><td class="eq">${esc(c.label)}</td><td class="sk"></td><td class="kcp"></td><td class="safe"></td></tr>`).join("")}</tbody></table>`;
+      return `<div class="bar" style="background:${col}">Rotation ${i + 1} &nbsp;–&nbsp; ${esc(c.label)}${mins}</div>${body}`;
     }).join("");
-    const coolBlock = coolMins
-      ? `<div class="bar">Warm Down &nbsp;–&nbsp; complete at last station &nbsp;–&nbsp; ${coolMins} mins</div><table class="warm"><tbody><tr><td class="wt" colspan="6" style="font-style:italic;color:#555">Gymnasts stand on line. Coach dismisses gymnasts.</td></tr></tbody></table>`
+
+    const warmBlock = (warmStd.length || warmSkills.length)
+      ? `<div class="bar">Warm-up${warmMins ? ` &nbsp;–&nbsp; ${warmMins} mins` : ""}</div>
+         ${warmStd.length ? `<table class="warm"><tbody><tr><td class="wt" colspan="4">${warmStd.map(esc).join(" &nbsp;·&nbsp; ")}</td></tr></tbody></table>` : ""}
+         ${warmSkills.length ? `<table class="circ"><thead><tr><th class="eq">Equipment</th><th class="sk">Skill</th><th class="kcp">KCP</th><th class="safe">Safety</th></tr></thead><tbody>${skillRows(warmSkills, "Warm-up")}</tbody></table>` : ""}`
       : "";
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(level)} — Lesson Plan</title>
+
+    const extrasBlock = extras.length
+      ? `<div class="bar">Additional skills (not in this rotation)</div>
+         <table class="circ"><thead><tr><th class="eq">Equipment</th><th class="sk">Skill</th><th class="kcp">KCP</th><th class="safe">Safety</th></tr></thead><tbody>${skillRows(extras, "")}</tbody></table>`
+      : "";
+
+    const coolBlock = `<div class="bar">Warm Down &nbsp;–&nbsp; complete at last station${warmdownMins ? ` &nbsp;–&nbsp; ${warmdownMins} mins` : ""}</div>
+      <table class="warm"><tbody><tr><td class="wt" colspan="4" style="font-style:italic;color:#555">${warmdownItems.length ? esc(warmdownItems.join(" · ")) : "Gymnasts stand on line. Coach dismisses gymnasts."}</td></tr></tbody></table>`;
+
+    const metaBits = [
+      totalMins ? `Duration: <b>${esc(totalMins)} min</b>` : "",
+      timeStr ? `Time: ${esc(timeStr)}` : "",
+      `Skills: ${selectedList.length}`,
+      `Date: ${esc(dateStr)}`,
+      `Coach: ${esc(coachStr)}${assistStr ? ` &nbsp;·&nbsp; Assist: ${esc(assistStr)}` : ""}`,
+    ].filter(Boolean).join("<br>");
+
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)} — Lesson Plan</title>
       <style>
         @page{size:A4;margin:12mm}
         *{box-sizing:border-box} body{font-family:'Barlow Semi Condensed',Arial,sans-serif;color:#1b1930;margin:0}
+        .banner{width:100%;max-height:70px;object-fit:contain;object-position:left;display:block;margin-bottom:8px}
         .hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2.5px solid ${NAVY};padding-bottom:6px;margin-bottom:12px}
         .hd h1{font-size:22px;margin:0;letter-spacing:.4px} .hd .club{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:2px}
+        .hd .sub{font-size:12px;color:#666;margin-top:2px}
         .hd .meta{font-family:Arial,sans-serif;font-size:11px;color:#555;text-align:right;line-height:1.5}
         .bar{background:#C2D69B;font-weight:700;font-size:13px;padding:5px 9px;margin-top:11px;color:#26331a;border:1px solid #a9c07c;letter-spacing:.3px}
         .bar[style]{color:#fff;border:none}
@@ -263,13 +351,14 @@ function ChalkApp() {
         .sub{display:block;font-size:9.5px;font-weight:400;color:#8a8a8a;letter-spacing:.2px}
         .kcp ul{margin:0;padding-left:14px} .kcp li{font-size:10.5px;color:#444;margin:1px 0}
         .warm{margin-top:0} .warm td{border:1px solid #c9c9c9;padding:5px 8px;font-family:Arial,sans-serif;font-size:11.5px;vertical-align:top}
-        .warm .wt{width:24%;font-weight:600} .warm .wm{width:9%;background:#f6f6f2}
+        .warm .wt{font-weight:600}
         .foot{margin-top:12px;font-family:Arial,sans-serif;font-size:10px;color:#888;border-top:1px solid #ddd;padding-top:5px}
         tr,table,.bar{break-inside:avoid}
       </style></head><body>
-      <div class="hd"><div><div class="club">Gymnastics Lesson Plan</div><h1>${esc(level)}</h1></div>
-        <div class="meta">Duration: <b>${esc(duration)} min</b><br>Skills: ${selectedList.length}<br>Date: __________  Coach: __________</div></div>
-      ${warmBlock}${circuitsHtml || "<p style='font-family:Arial;color:#888'>No apparatus skills selected yet.</p>"}${coolBlock}
+      ${headerUri ? `<img class="banner" src="${headerUri}"/>` : ""}
+      <div class="hd"><div><div class="club">Gymnastics Lesson Plan</div><h1>${esc(title)}</h1>${subtitle ? `<div class="sub">${esc(subtitle)}</div>` : ""}</div>
+        <div class="meta">${metaBits}</div></div>
+      ${warmBlock}${circuitsHtml || "<p style='font-family:Arial;color:#888'>No skills selected yet.</p>"}${extrasBlock}${coolBlock}
       <div class="foot">KCP = Key Coaching Points &nbsp;·&nbsp; Key: Coach position</div>
       <script>window.onload=()=>{setTimeout(()=>window.print(),450)}<\/script></body></html>`);
     win.document.close();
@@ -357,41 +446,54 @@ function ChalkApp() {
 
   useEffect(() => () => { if (liveUnsubRef.current) liveUnsubRef.current(); }, []);
 
-  const gBlock = useMemo(() => gymorg && gymorg.blocks.find((b) => b.id === gBlockId), [gymorg, gBlockId]);
-  const gSquad = useMemo(() => gymorg && gymorg.squads.find((s) => s.id === gSquadId), [gymorg, gSquadId]);
-  const gAllDated = useMemo(() => (gymorg && gBlock) ? GB.datedSessions(gymorg, gBlock) : [], [gymorg, gBlock]);
-  const gSessions = useMemo(() => gSquadId ? GB.datedForSquad(gAllDated, gSquadId) : [], [gAllDated, gSquadId]);
-  const gCurrent = gSessions[gSessionIdx] || gSessions[0] || null;
-  const gLegs = gCurrent ? gCurrent.legs : [];
   // Reset to the first lesson whenever the block or squad changes.
   useEffect(() => { setGSessionIdx(0); }, [gBlockId, gSquadId]);
 
   const gMappedLevel = gSquad ? (squadMap[gSquad.id] || "") : "";
   const gAlpIdx = gSquad ? (alpMap[gSquad.id] != null ? alpMap[gSquad.id] : 3) : 3;
+  const gHeader = useMemo(() => (gymorg && gSquadId) ? GB.resolveHeader(gymorg, gSquadId, headerMap) : null, [gymorg, gSquadId, headerMap]);
   const gKey = gCurrent ? gCurrent.key : null;
 
-  function historySkillsFor(key) { return LS.get("chalk-gymorg-history", {})[key] || {}; }
-  function saveHistorySkillsFor(key, sectionsInRotation) {
-    if (!key) return;
-    const snapshot = {};
-    Object.entries(selected).forEach(([k, v]) => { if (sectionsInRotation.includes(v.section) && v.level === level) snapshot[k] = v; });
-    const all = LS.get("chalk-gymorg-history", {});
-    all[key] = snapshot;
-    LS.set("chalk-gymorg-history", all);
+  // ---- Per-session lesson plans ----
+  // Every session's ticked skills are kept separately and swapped in/out of the
+  // working `selected` as you move between lessons/squads, so nothing is lost.
+  // Keyed by the dated session key (date::squad::session); "__manual__" holds the
+  // free-form (no active session) working set. Persisted to localStorage.
+  const plansRef = useRef(LS.get("chalk-gymorg-plans", {}));
+  const loadedKeyRef = useRef(undefined);
+  const currentPlanKey = gKey || "__manual__";
+
+  // The previous occurrence of THIS squad's same weekly slot (earlier date), so
+  // "same as last time" can carry a plan forward from lesson N-1 to lesson N.
+  function prevSameSlotKey() {
+    if (!gCurrent) return null;
+    const i = gSessions.findIndex((s) => s.key === gCurrent.key);
+    for (let j = i - 1; j >= 0; j--) if (gSessions[j].sessionId === gCurrent.sessionId) return gSessions[j].key;
+    return null;
   }
 
-  // Auto-save the rotation's ticked skills as "last time" whenever they change.
   useEffect(() => {
-    if (!gKey || !gLegs.length) return;
-    const secs = gLegs.map((l) => stationMap[l.stationId]).filter(Boolean);
-    const t = setTimeout(() => saveHistorySkillsFor(gKey, secs), 400);
+    const prevKey = loadedKeyRef.current;
+    if (prevKey !== currentPlanKey) {
+      // Switching sessions: stash the outgoing plan, restore the incoming one.
+      if (prevKey !== undefined) plansRef.current = { ...plansRef.current, [prevKey]: selected };
+      loadedKeyRef.current = currentPlanKey;
+      LS.set("chalk-gymorg-plans", plansRef.current);
+      const incoming = plansRef.current[currentPlanKey] || {};
+      if (prevKey !== undefined || Object.keys(incoming).length) setSelected(incoming);
+      return;
+    }
+    // Same session, skills changed: keep the store current, persist debounced.
+    plansRef.current = { ...plansRef.current, [currentPlanKey]: selected };
+    const t = setTimeout(() => LS.set("chalk-gymorg-plans", plansRef.current), 400);
     return () => clearTimeout(t);
-  }, [selected, gKey]);
+  }, [selected, currentPlanKey]);
 
-  function jumpToLeg(stationId) {
+  function jumpToLeg(stationId, legIdx) {
     const appName = stationMap[stationId];
-    if (!appName || !gMappedLevel) return;
-    setLevel(gMappedLevel);
+    if (!appName) return;
+    if (legIdx != null) setActiveSlot(legIdx);
+    if (gMappedLevel) setLevel(gMappedLevel);
     setTab(appName);
     if (CHALK_ALP.apparatus[appName]) { setMode("alp"); setAlpIdx(gAlpIdx); setAlpFilter("range"); }
     else setMode("club");
@@ -400,26 +502,29 @@ function ChalkApp() {
   function applyPrefillToRotation() {
     if (!gLegs.length || !gMappedLevel) return;
     const secs = gLegs.map((l) => stationMap[l.stationId]).filter(Boolean);
-    if (prefillMode === "last" && gKey) {
-      const stored = historySkillsFor(gKey);
+    if (prefillMode === "last") {
+      const pk = prevSameSlotKey();
+      const stored = pk ? (plansRef.current[pk] || {}) : {};
       if (Object.keys(stored).length) {
         setSelected((prev) => ({ ...prev, ...stored }));
         return;
       }
     }
-    // Fresh suggestion: for ALP-capable apparatus, auto-tick the squad's
-    // current-level pathway skills; club-only apparatus just gets filtered to.
+    // Fresh suggestion: for each rotation leg, auto-tick that apparatus's
+    // current-level ALP pathway skills into THAT leg's slot.
     setSelected((prev) => {
       const next = { ...prev };
-      secs.forEach((sectionName) => {
+      gLegs.forEach((leg, legIdx) => {
+        const sectionName = stationMap[leg.stationId];
+        if (!sectionName) return;
         const entries = CHALK_ALP.apparatus[sectionName];
         if (!entries) return;
         entries.forEach((entry, idx) => {
           if (entry.t && entry.t[gAlpIdx] != null) {
-            const key = `ALP::${sectionName}::${idx}`;
+            const key = `${legIdx}|ALP::${sectionName}::${idx}`;
             if (!next[key]) {
               const cues = [`Family: ${entry.f}`, `Difficulty: ${entry.d || "—"}`, `Pathway skill (auto-suggested)`];
-              next[key] = { level: gMappedLevel, section: sectionName, group: entry.f, name: entry.s, cues, img: [], color: APP_COLORS[sectionName] || NAVY, alp: true };
+              next[key] = { level: gMappedLevel, slot: legIdx, section: sectionName, group: entry.f, name: entry.s, cues, img: [], color: APP_COLORS[sectionName] || NAVY, alp: true };
             }
           }
         });
@@ -428,11 +533,100 @@ function ChalkApp() {
     });
   }
 
-  function goToSession(idx) { setGSessionIdx(Math.max(0, Math.min(idx, gSessions.length - 1))); }
-  function nextLesson() { if (gSessionIdx < gSessions.length - 1) setGSessionIdx(gSessionIdx + 1); }
+  // ---- Word (.docx) export -------------------------------------------------
+  // Builds the same document GymOrgPro exports, with Chalk's skills filled in.
+  // Works for ANY dated session in the block (not just the one on screen), by
+  // reading that session's saved plan out of the per-session store.
+  const MONTHS_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const DAYS_FULL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+  function planFor(key) {
+    // The session on screen holds its skills in `selected`; others come from the store.
+    return (key === currentPlanKey) ? selected : (plansRef.current[key] || {});
+  }
+
+  function docxSpecFor(s) {
+    const plan = planFor(s.key);
+    const legs = s.legs || [];
+    const groups = {};
+    Object.entries(plan).forEach(([id, v]) => {
+      let slot = v.slot;
+      if (slot === undefined || slot === null) {
+        slot = v.section === "Warm-up" ? "W" : legs.findIndex((l) => stationMap[l.stationId] === v.section);
+        if (slot < 0) slot = "X";
+      }
+      (groups[slot] = groups[slot] || []).push(v);
+    });
+
+    const rowsOf = (arr, equip) => (arr || []).map((v) => ({
+      equipment: equip || v.section || "",
+      skill: v.name,
+      sub: v.group && v.group !== "General" ? v.group : "",
+      kcp: v.cues || [],
+      safety: "",
+    }));
+
+    const circuits = legs.map((leg, i) => ({
+      title: `Circuit ${i + 1} \u2014 ${leg.gap ? "Open" : (leg.stationName || "Station")} \u2014 ${leg.minutes} mins`,
+      rows: rowsOf(groups[i], leg.gap ? "" : leg.stationName),
+    }));
+    if ((groups["X"] || []).length) {
+      circuits.push({ title: "Additional skills (not in this rotation)", rows: rowsOf(groups["X"], "") });
+    }
+
+    const hdr = GB.resolveHeader(gymorg, s.squadId, headerMap);
+    const blockStart = gBlock ? new Date(gBlock.startDate + "T00:00:00Z") : null;
+    const sDate = new Date(s.date + "T00:00:00Z");
+    const week = blockStart ? Math.floor((sDate - blockStart) / 604800000) + 1 : "";
+    const warmSkills = rowsOf(groups["W"], "Warm-up");
+
+    return {
+      spec: {
+        banner: hdr && hdr.imageBase64 ? { base64: hdr.imageBase64, ext: hdr.ext, width: hdr.width, height: hdr.height } : null,
+        term: gBlock ? gBlock.name : "",
+        week: String(week),
+        day: DAYS_FULL[s.weekday],
+        date: `${MONTHS_FULL[Number(s.date.slice(5, 7)) - 1]} ${Number(s.date.slice(8, 10))}, ${s.date.slice(0, 4)}`,
+        time: `${GB.fmtTime(s.startTime)} to ${GB.fmtTime(s.endTime)}`,
+        squad: s.squadName,
+        length: `${s.duration} min`,
+        coach: s.coachName || "",
+        assistant: s.assistantName || "",
+        // GymOrgPro's standard warm-up, plus any warm-up skills Chalk picked.
+        warmup: ((gymorg && gymorg.warmup) || []).map((w) => ({ name: (w.name || "").trim(), duration: w.duration }))
+          .concat(warmSkills.map((r) => ({ name: r.skill, duration: "" }))),
+        warmdown: ((gymorg && gymorg.warmdown) || []).map((w) => ({ name: (w.name || "").trim(), duration: w.duration })),
+        circuits,
+      },
+      filename: ChalkDocx.safeName(
+        `${s.date.slice(0, 4)}_${s.squadName}_${gBlock ? gBlock.name : ""}_Week_${week}_${MONTHS_FULL[Number(s.date.slice(5, 7)) - 1]}_${Number(s.date.slice(8, 10))}_${DAYS_FULL[s.weekday]}`
+      ) + ".docx",
+      skillCount: Object.keys(plan).length,
+    };
+  }
+
+  function exportOne() {
+    if (!gCurrent) return;
+    const { spec, filename } = docxSpecFor(gCurrent);
+    ChalkDocx.saveDocx(spec, filename);
+  }
+
+  // scope: "squad" = this squad's lessons in the block, "all" = every lesson.
+  // onlyPlanned: skip lessons with no skills chosen yet.
+  function exportMany(scope, onlyPlanned) {
+    const list = scope === "all" ? gAllDated : gSessions;
+    let items = list.map((s) => docxSpecFor(s));
+    if (onlyPlanned) items = items.filter((it) => it.skillCount > 0);
+    if (!items.length) { alert("No planned lessons to export yet. Tick some skills first, or choose 'include empty'."); return; }
+    const label = scope === "all" ? "All-squads" : (gSquad ? gSquad.name : "Squad");
+    ChalkDocx.saveDocxZip(items, ChalkDocx.safeName(`${gBlock ? gBlock.name : "Block"}_${label}_lesson_plans`) + ".zip");
+  }
+
+  function goToSession(idx) { setGSessionIdx(Math.max(0, Math.min(idx, gSessions.length - 1))); }  function nextLesson() { if (gSessionIdx < gSessions.length - 1) setGSessionIdx(gSessionIdx + 1); }
   function prevLesson() { if (gSessionIdx > 0) setGSessionIdx(gSessionIdx - 1); }
 
-  const sidebarProps = { level, focus, duration, orderedSections, bySection, selectedList, copyPlan, printPlan, clearAll, setSelected, setLightbox };
+  const planContext = gCurrent ? `${gSquad ? gSquad.name + " · " : ""}${gCurrent.dow} ${fmtShortDate(gCurrent.date)}` : "";
+  const planProps = { gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, selected, setSelected, setLightbox, orderedSections, bySection, bySlot, activeSlot, level, focus, duration, copyPlan, printPlan, clearAll, jumpToLeg, planContext, selectedList, exportOne, exportMany, gSessions, gAllDated };
 
   return (
     <div style={{ fontFamily: "Inter, system-ui, sans-serif", color: INK }} className="min-h-screen bg-slate-100">
@@ -440,7 +634,7 @@ function ChalkApp() {
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "rgba(255,255,255,.12)" }}><IconDumbbell size={20} /></div>
           <div>
-            <div className="disp text-xl font-bold tracking-wide leading-none">CHALK</div>
+            <div className="disp text-xl font-bold tracking-wide leading-none">CHALK <span className="text-[11px] font-semibold align-middle text-indigo-200 tracking-normal">{APP_VERSION}</span></div>
             <div className="text-[11px] uppercase tracking-[2px] text-indigo-200">Session Builder</div>
           </div>
           <button onClick={() => setGymorgOpen((o) => !o)}
@@ -451,25 +645,32 @@ function ChalkApp() {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-4 py-5 grid lg:grid-cols-[1fr_360px] gap-5 items-start">
-        <div className="min-w-0">
-          {gymorgOpen && (
-            <GymOrgPanel
-              gymorg={gymorg} gymorgError={gymorgError} fileInputRef={fileInputRef} handleFile={handleFile}
-              gBlockId={gBlockId} setGBlockId={setGBlockId} gSquadId={gSquadId} setGSquadId={setGSquadId}
-              gSessions={gSessions} gSessionIdx={gSessionIdx} goToSession={goToSession}
-              gLegs={gLegs} stationMap={stationMap} setStationMap={setStationMap}
-              gSquad={gSquad} squadMap={squadMap} setSquadMap={setSquadMap}
-              alpMap={alpMap} setAlpMap={setAlpMap} gAlpIdx={gAlpIdx}
-              prefillMode={prefillMode} setPrefillMode={setPrefillMode}
-              jumpToLeg={jumpToLeg} applyPrefillToRotation={applyPrefillToRotation}
-              nextLesson={nextLesson} prevLesson={prevLesson}
-              activeTab={tab} setFocus={setFocus} setDuration={setDuration}
-              liveRosters={liveRosters} liveRosterId={liveRosterId} liveStatus={liveStatus}
-              connectLive={connectLive} selectLiveRoster={selectLiveRoster}
-            />
-          )}
+      {gymorgOpen && (
+        <div className="max-w-6xl mx-auto px-4 pt-4">
+          <GymOrgPanel
+            gymorg={gymorg} gymorgError={gymorgError} fileInputRef={fileInputRef} handleFile={handleFile}
+            gBlockId={gBlockId} setGBlockId={setGBlockId} gSquadId={gSquadId} setGSquadId={setGSquadId}
+            gSessions={gSessions} gSessionIdx={gSessionIdx} goToSession={goToSession}
+            gLegs={gLegs} stationMap={stationMap} setStationMap={setStationMap}
+            headerMap={headerMap} setHeaderMap={setHeaderMap} gHeader={gHeader}
+            gSquad={gSquad} squadMap={squadMap} setSquadMap={setSquadMap}
+            alpMap={alpMap} setAlpMap={setAlpMap} gAlpIdx={gAlpIdx}
+            prefillMode={prefillMode} setPrefillMode={setPrefillMode}
+            jumpToLeg={jumpToLeg} applyPrefillToRotation={applyPrefillToRotation}
+            nextLesson={nextLesson} prevLesson={prevLesson}
+            activeTab={tab} setFocus={setFocus} setDuration={setDuration}
+            liveRosters={liveRosters} liveRosterId={liveRosterId} liveStatus={liveStatus}
+            connectLive={connectLive} selectLiveRoster={selectLiveRoster}
+          />
+        </div>
+      )}
 
+      <div className="max-w-6xl mx-auto px-4 py-5 grid lg:grid-cols-2 gap-5 items-start">
+        {/* LEFT — the lesson plan, stepping down through warm-up and rotations */}
+        <div className="min-w-0 order-1"><LessonPlanDoc {...planProps} /></div>
+
+        {/* RIGHT — skill selector; tick a skill and it drops into the plan */}
+        <div className="min-w-0 order-2">
           <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4">
             <div className="flex flex-wrap gap-4 items-end">
               <label className="flex flex-col gap-1">
@@ -520,7 +721,7 @@ function ChalkApp() {
           )}
 
           {mode === "alp" && apparatusHasAlp ? (
-            <AlpView app={tab} color={color} alpIdx={alpIdx} setAlpIdx={setAlpIdx} alpFilter={alpFilter} setAlpFilter={setAlpFilter} selected={selected} toggleAlp={toggleAlpSkill} level={level} />
+            <AlpView app={tab} color={color} alpIdx={alpIdx} setAlpIdx={setAlpIdx} alpFilter={alpFilter} setAlpFilter={setAlpFilter} selected={selected} toggleAlp={toggleAlpSkill} level={level} slotKey={slotKey} />
           ) : (
             <>
               <div className="relative mb-3">
@@ -541,7 +742,7 @@ function ChalkApp() {
                     <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
                       {sec.skills.map((sk) => {
                         const key = skillKey(level, tab, sec._gi, sk._si);
-                        const isSel = !!selected[key];
+                        const isSel = !!selected[slotKey(key)];
                         const open = !!openCues[key];
                         return (
                           <div key={key} className="px-3 py-2.5">
@@ -579,23 +780,8 @@ function ChalkApp() {
             </>
           )}
         </div>
-
-        <aside className="hidden lg:block sticky top-4"><SessionPlanCard {...sidebarProps} /></aside>
       </div>
 
-      <div className="lg:hidden fixed bottom-0 inset-x-0 z-20">
-        <button onClick={() => setMobileOpen(true)} className="w-full text-white px-4 py-3 flex items-center justify-center gap-2 disp font-semibold shadow-lg" style={{ background: NAVY }}>
-          <IconClipboard size={18} /> View session · {selectedList.length} skill{selectedList.length === 1 ? "" : "s"}
-        </button>
-      </div>
-      {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-30 bg-black/40 flex items-end" onClick={() => setMobileOpen(false)}>
-          <div className="bg-slate-100 w-full max-h-[85vh] overflow-auto rounded-t-2xl p-3" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-end"><button onClick={() => setMobileOpen(false)} className="p-1.5"><IconX size={20} /></button></div>
-            <SessionPlanCard {...sidebarProps} />
-          </div>
-        </div>
-      )}
       {lightbox && (
         <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
           <div className="bg-white rounded-xl p-4 max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
@@ -612,48 +798,124 @@ function ChalkApp() {
 }
 
 // ---------------------------------------------------------- session plan --
-function SessionPlanCard({ level, focus, duration, orderedSections, bySection, selectedList, copyPlan, printPlan, clearAll, setSelected, setLightbox }) {
+function LessonPlanDoc({ gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, selected, setSelected, setLightbox, orderedSections, bySection, bySlot, activeSlot, level, focus, duration, copyPlan, printPlan, clearAll, jumpToLeg, planContext, selectedList, exportOne, exportMany, gSessions, gAllDated }) {
+  const hasSession = !!(gLegs && gLegs.length);
+  const remove = (id) => setSelected((prev) => { const n = { ...prev }; delete n[id]; return n; });
+  const headerUri = gHeader ? GB.headerDataUri(gHeader) : "";
+  const warmupRef = ((gymorg && gymorg.warmup) || []).map((w) => `${(w.name || "").trim()}${w.duration ? ` (${w.duration}m)` : ""}`).filter(Boolean).join(" · ");
+  const warmdown = (gymorg && gymorg.warmdown) || [];
+
+  const SkillRow = ({ sk }) => (
+    <li className="group flex items-start gap-2 text-[13px] text-slate-700 py-1">
+      {sk.img && sk.img.length > 0
+        ? <button onClick={() => setLightbox({ imgs: sk.img, name: sk.name })} className="mt-0.5 w-8 h-8 rounded border border-slate-200 overflow-hidden shrink-0 bg-white flex items-center justify-center"><img src={imgSrc(sk.img[0])} alt="" className="max-w-full max-h-full object-contain" /></button>
+        : <span className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0" style={{ background: sk.color || NAVY }} />}
+      <div className="flex-1 min-w-0">
+        <div className="leading-snug font-medium text-slate-800">{sk.name}</div>
+        {(sk.cues || []).length > 0 && <div className="text-[11px] text-slate-500 leading-snug mt-0.5">{sk.cues.join(" · ")}</div>}
+      </div>
+      <button onClick={() => remove(sk.id)} className="text-slate-300 hover:text-red-500 shrink-0 mt-0.5" title="Remove"><IconX size={14} /></button>
+    </li>
+  );
+
+  const Block = ({ title, color, minutes, skills, onFocus, subtitle, empty }) => (
+    <div className="rounded-lg border border-slate-200 overflow-hidden">
+      <button onClick={onFocus || undefined} disabled={!onFocus} className="w-full flex items-center gap-2 px-3 py-2 text-left disabled:cursor-default" style={{ background: (color || NAVY) + "14" }}>
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color || NAVY }} />
+        <span className="disp text-[13px] font-bold uppercase tracking-wide truncate" style={{ color: color || NAVY }}>{title}</span>
+        {minutes != null && <span className="text-[11px] text-slate-500 shrink-0">{minutes} min</span>}
+        <span className="ml-auto flex items-center gap-2 shrink-0">
+          {skills && skills.length > 0 && <span className="text-[11px] text-slate-400">{skills.length}</span>}
+          {onFocus && <span className="text-[11px] font-semibold inline-flex items-center" style={{ color: color || NAVY }}>Add<IconChevronRight size={13} /></span>}
+        </span>
+      </button>
+      <div className="px-3 py-2">
+        {subtitle && <div className="text-[11px] text-slate-400 mb-1 leading-snug">{subtitle}</div>}
+        {skills && skills.length > 0
+          ? <ul className="divide-y divide-slate-100">{skills.map((sk) => <SkillRow key={sk.id} sk={sk} />)}</ul>
+          : <div className="text-[12px] text-slate-400 italic py-1">{empty || "No skills yet."}</div>}
+      </div>
+    </div>
+  );
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-4 py-3 text-white" style={{ background: NAVY }}>
-        <div className="disp font-bold text-lg leading-tight">Session Plan</div>
-        <div className="text-[12px] text-indigo-200">{level}{focus ? ` · ${focus}` : ""} · {duration} min · {selectedList.length} skill{selectedList.length === 1 ? "" : "s"}</div>
+      <div className="text-white" style={{ background: NAVY }}>
+        {headerUri && <img src={headerUri} alt="" className="w-full h-auto max-h-24 object-contain object-left bg-white" />}
+        <div className="px-4 py-3">
+          <div className="disp font-bold text-lg leading-tight">{hasSession && gSquad ? gSquad.name : "Session Plan"}</div>
+          {hasSession
+            ? <div className="text-[12px] text-indigo-200">{planContext}{gCurrent && gCurrent.coachName ? ` · Coach ${gCurrent.coachName}` : ""}{gCurrent ? ` · ${gCurrent.duration} min` : ""} · {selectedList.length} skill{selectedList.length === 1 ? "" : "s"}</div>
+            : <div className="text-[12px] text-indigo-200">{level}{focus ? ` · ${focus}` : ""} · {duration} min · {selectedList.length} skill{selectedList.length === 1 ? "" : "s"}</div>}
+        </div>
       </div>
-      <div className="max-h-[52vh] overflow-auto p-3 space-y-3">
-        {orderedSections.length === 0 && <p className="text-sm text-slate-400 text-center py-8">Tick skills to build the session.<br />They&rsquo;ll appear here grouped by section.</p>}
-        {orderedSections.map((sec) => {
-          const c = APP_COLORS[sec] || NAVY;
-          return (
-            <div key={sec}>
-              <div className="disp text-[13px] font-bold uppercase tracking-wide mb-1 flex items-center gap-1.5" style={{ color: c }}>
-                <span className="w-2 h-2 rounded-full" style={{ background: c }} />{sec}<span className="text-slate-400 font-medium">{bySection[sec].length}</span>
+
+      <div className="max-h-[70vh] lg:max-h-[calc(100vh-9rem)] overflow-auto p-3 space-y-2.5">
+        {hasSession ? (
+          <>
+            <Block title="Warm-up" color={APP_COLORS["Warm-up"] || NAVY} skills={bySlot["W"] || []} onFocus={null} subtitle={warmupRef ? `Standard: ${warmupRef}` : null} empty="Add warm-up skills from the selector." />
+            {gLegs.map((leg, i) => {
+              const app = stationMap[leg.stationId];
+              const skills = bySlot[i] || [];
+              const label = leg.gap ? "Break / free time" : (leg.stationName || "Station");
+              const isActive = activeSlot === i;
+              return (
+                <div key={i} className={isActive ? "rounded-lg ring-2 ring-offset-1" : ""} style={isActive ? { ringColor: APP_COLORS[app] || NAVY, boxShadow: `0 0 0 2px ${APP_COLORS[app] || NAVY}` } : undefined}>
+                  <Block title={`Rotation ${i + 1} · ${label}`} color={APP_COLORS[app] || NAVY} minutes={leg.minutes}
+                    skills={skills} onFocus={app ? () => jumpToLeg(leg.stationId, i) : null}
+                    subtitle={!app && !leg.gap ? "Map this station to an apparatus in the GymOrgPro panel to add skills." : null}
+                    empty={app ? "No skills yet — click Add, then pick from the selector." : "—"} />
+                </div>
+              );
+            })}
+            {(bySlot["X"] || []).length > 0 && (
+              <Block title="Additional skills (not in this rotation)" color="#64748b" skills={bySlot["X"]} onFocus={null} />
+            )}
+            <div className="rounded-lg border border-slate-200 overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-2" style={{ background: NAVY + "14" }}>
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: NAVY }} />
+                <span className="disp text-[13px] font-bold uppercase tracking-wide" style={{ color: NAVY }}>Warm-down</span>
               </div>
-              <ul className="space-y-1">
-                {bySection[sec].map((sk) => (
-                  <li key={sk.id} className="group flex items-start gap-2 text-[13px] text-slate-700">
-                    {sk.img && sk.img.length > 0
-                      ? <button onClick={() => setLightbox({ imgs: sk.img, name: sk.name })} className="mt-0.5 w-6 h-6 rounded border border-slate-200 overflow-hidden shrink-0 bg-white flex items-center justify-center"><img src={imgSrc(sk.img[0])} alt="" className="max-w-full max-h-full object-contain" /></button>
-                      : <span className="mt-1.5 w-1 h-1 rounded-full shrink-0" style={{ background: c }} />}
-                    <span className="flex-1 leading-snug">{sk.name}</span>
-                    <button onClick={() => setSelected((prev) => { const n = { ...prev }; delete n[sk.id]; return n; })} className="text-slate-300 hover:text-red-500 shrink-0 mt-0.5"><IconX size={14} /></button>
-                  </li>
-                ))}
-              </ul>
+              <div className="px-3 py-2 text-[12px] text-slate-500">
+                {warmdown.length ? warmdown.map((w) => `${(w.name || "").trim()}${w.duration ? ` (${w.duration}m)` : ""}`).join(" · ") : "Complete at last station. Gymnasts stand on line; coach dismisses."}
+              </div>
             </div>
-          );
-        })}
+          </>
+        ) : (
+          orderedSections.length === 0
+            ? <p className="text-sm text-slate-400 text-center py-8">Tick skills in the selector to build the session.<br />They&rsquo;ll appear here grouped by section.</p>
+            : orderedSections.map((sec) => <Block key={sec} title={sec} color={APP_COLORS[sec] || NAVY} skills={bySection[sec] || []} onFocus={null} />)
+        )}
       </div>
-      <div className="border-t border-slate-100 p-2.5 flex gap-2">
-        <button onClick={printPlan} disabled={!selectedList.length} className="flex-1 disp font-semibold text-sm text-white rounded-lg py-2 flex items-center justify-center gap-1.5 disabled:opacity-40" style={{ background: NAVY }}><IconPrinter size={15} /> Print / PDF</button>
-        <button onClick={copyPlan} disabled={!selectedList.length} className="px-3 rounded-lg border border-slate-300 text-slate-600 disabled:opacity-40" title="Copy as text"><IconCopy size={15} /></button>
-        <button onClick={clearAll} disabled={!selectedList.length} className="px-3 rounded-lg border border-slate-300 text-slate-600 hover:text-red-500 disabled:opacity-40" title="Clear all"><IconTrash size={15} /></button>
+
+      <div className="border-t border-slate-100 p-2.5 space-y-2">
+        {hasSession && (
+          <>
+            <button onClick={exportOne} className="w-full disp font-semibold text-sm text-white rounded-lg py-2 flex items-center justify-center gap-1.5" style={{ background: NAVY }}>
+              <IconDownload size={15} /> Export this lesson (Word)
+            </button>
+            <div className="flex gap-2">
+              <button onClick={() => exportMany("squad", true)} className="flex-1 text-[12px] font-semibold rounded-lg border border-slate-300 text-slate-600 py-1.5 hover:border-slate-400" title="One .docx per planned lesson for this squad, zipped">
+                Export squad&rsquo;s block ({(gSessions || []).length})
+              </button>
+              <button onClick={() => exportMany("all", true)} className="flex-1 text-[12px] font-semibold rounded-lg border border-slate-300 text-slate-600 py-1.5 hover:border-slate-400" title="One .docx per planned lesson across every squad in the block, zipped">
+                Export whole block ({(gAllDated || []).length})
+              </button>
+            </div>
+          </>
+        )}
+        <div className="flex gap-2">
+          <button onClick={printPlan} disabled={!selectedList.length} className={`${hasSession ? "flex-1 text-[12px] py-1.5 border border-slate-300 text-slate-600 font-semibold rounded-lg" : "flex-1 disp font-semibold text-sm text-white rounded-lg py-2"} flex items-center justify-center gap-1.5 disabled:opacity-40`} style={hasSession ? undefined : { background: NAVY }}><IconPrinter size={15} /> Print / PDF</button>
+          <button onClick={copyPlan} disabled={!selectedList.length} className="px-3 rounded-lg border border-slate-300 text-slate-600 disabled:opacity-40" title="Copy as text"><IconCopy size={15} /></button>
+          <button onClick={clearAll} disabled={!selectedList.length} className="px-3 rounded-lg border border-slate-300 text-slate-600 hover:text-red-500 disabled:opacity-40" title="Clear all"><IconTrash size={15} /></button>
+        </div>
       </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------- ALP view -
-function AlpView({ app, color, alpIdx, setAlpIdx, alpFilter, setAlpFilter, selected, toggleAlp, level }) {
+function AlpView({ app, color, alpIdx, setAlpIdx, alpFilter, setAlpFilter, selected, toggleAlp, level, slotKey }) {
   const cols = CHALK_ALP.cols || [];
   const entries = CHALK_ALP.apparatus[app] || [];
   const col = cols[alpIdx] || {};
@@ -697,7 +959,7 @@ function AlpView({ app, color, alpIdx, setAlpIdx, alpFilter, setAlpFilter, selec
               <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
                 {visible.map((entry) => {
                   const key = `ALP::${app}::${entry.i}`;
-                  const isSel = !!selected[key];
+                  const isSel = !!selected[slotKey ? slotKey(key) : key];
                   const tag = entry.status === "stretch" ? { t: "Stretch", c: "#7c3aed" } : entry.status === "support" ? { t: "Support", c: "#0d9488" } : null;
                   return (
                     <div key={key} className="px-3 py-2.5" style={{ opacity: entry.status === "none" ? 0.5 : 1 }}>
@@ -731,6 +993,7 @@ function GymOrgPanel(props) {
     gBlockId, setGBlockId, gSquadId, setGSquadId,
     gSessions, gSessionIdx, goToSession,
     gLegs, stationMap, setStationMap, gSquad, squadMap, setSquadMap,
+    headerMap, setHeaderMap, gHeader,
     alpMap, setAlpMap, gAlpIdx, prefillMode, setPrefillMode,
     jumpToLeg, applyPrefillToRotation, nextLesson, prevLesson, activeTab,
     liveRosters, liveRosterId, liveStatus, connectLive, selectLiveRoster,
@@ -821,6 +1084,20 @@ function GymOrgPanel(props) {
               {(CHALK_ALP.cols || []).map((c, i) => <option key={i} value={i}>{c.level}</option>)}
             </select>
           </label>
+          {gymorg.headers && gymorg.headers.length > 0 && (
+            <label className="flex items-center gap-1.5 text-slate-600">Lesson plan header:
+              <select value={headerMap[gSquad.id] || ""} onChange={(e) => { const m = { ...headerMap, [gSquad.id]: e.target.value }; setHeaderMap(m); LS.set("chalk-gymorg-headermap", m); }} className="bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-sm">
+                <option value="">{(() => { const g = GB.guessHeaderId(gymorg, gSquad.id); const gn = g && (gymorg.headers.find((h) => h.id === g) || {}).name; return gn ? `Auto — ${gn}` : "Auto — none"; })()}</option>
+                {gymorg.headers.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
+
+      {gHeader && GB.headerDataUri(gHeader) && (
+        <div className="mb-3">
+          <img src={GB.headerDataUri(gHeader)} alt={`${gHeader.name} lesson plan header`} className="w-full h-auto rounded-lg border border-slate-200" style={{ maxHeight: 90, objectFit: "contain", objectPosition: "left" }} />
         </div>
       )}
 

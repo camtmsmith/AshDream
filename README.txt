@@ -1,5 +1,55 @@
-CHALK — Gymnastics Session Builder (V5)
+CHALK — Gymnastics Session Builder (v5.2)
 ========================================
+
+WHAT'S NEW IN v5.2 — WORD (.docx) LESSON PLAN EXPORT
+Chalk now exports the SAME Word document GymOrgPro exports - same banner, same
+TERM/WEEK/DAY/DATE/TIME and SQUAD/LENGTH/COACH lines, same Warm-up
+Activity/Duration table, same "Circuit N - Station - X mins" bars with
+Equipment/Skill/KCP/Safety tables, same Warm-down, Notes and green Key bar -
+except Chalk FILLS IN the skills, with each skill's coaching points as its KCP.
+Circuits you haven't planned still come out with blank rows to write on.
+
+Three buttons under the lesson plan:
+  Export this lesson (Word)   - one .docx for the lesson on screen
+  Export squad's block        - one .docx per planned lesson for this squad, zipped
+  Export whole block          - one .docx per planned lesson for EVERY squad, zipped
+Batch exports skip lessons with no skills chosen yet. Files are named like
+GymOrgPro's: 2026_Competitive_8_Term_3_block_Week_4_August_4_Tuesday.docx
+
+No install, no internet needed for the export itself - the Word file is built in
+the browser (chalk-docx.js). Note: skill diagrams are NOT embedded in the Word
+file, because a double-clicked file:// page isn't allowed to read the local image
+files. GymOrgPro's template has no diagrams either. Use Print/PDF if you want the
+diagrams on the page.
+
+WHAT'S NEW IN v5.1 — ROTATION-ACCURATE LESSON PLAN OUTPUT
+The printed/PDF lesson plan is now built from the REAL GymOrgPro rotation, not
+from a guess. It uses the squad name, the real date, coach, session length, the
+squad's header banner, and each rotation's ACTUAL station name and minutes
+(e.g. "Rotation 1 - Floor 2 - 15 mins"). Previously it titled the plan with the
+Chalk level, split the manual "Mins" box evenly across circuits (inventing times
+like "18 mins"), and listed any apparatus you'd picked from - even ones not in
+the rotation.
+
+Skills are now tied to the ROTATION SLOT, not just the apparatus. If a session
+visits Floor twice (Floor 2 early, Floor 1 later), each gets its own skills.
+Click "Add" on a rotation to aim the selector at it; the highlighted rotation is
+where new ticks land. Skills picked for an apparatus that isn't in the rotation
+are kept under "Additional skills" rather than silently appearing as a circuit.
+
+WHAT'S NEW IN V5 — LESSON-PLAN LAYOUT + PER-SESSION PLANS
+The page is now two halves. The LEFT is the lesson plan itself: session details
+and header banner at the top, then it steps down through the warm-up, each
+rotation (in the order GymOrgPro schedules them), and the warm-down — laid out
+like the finished lesson-plan document. The RIGHT is the skill selector; tick a
+skill and it drops into the matching rotation on the left. Click a rotation on
+the left to jump the selector to that apparatus.
+
+Every session keeps its OWN plan. Build lesson 1, move to lesson 2, jump around,
+change squads or dates — each lesson's skills are saved and restored, nothing is
+lost. "Prefill this session → same as last time" copies the previous lesson in
+the sequence so you can build forward quickly. Plans are stored per session
+(date + squad) and survive a reload.
 
 WHAT'S NEW IN V5 — LIVE CONNECTION TO GYMORGPRO (no export/import)
 GymOrgPro now publishes its schedule to a shared Firebase database, and Chalk
@@ -101,4 +151,5 @@ FILES
   gymorg-bridge.js    turns a GymOrgPro roster (file OR live) into rotations,
                       dated sessions, headers, warm-ups
   chalk-gymorg-live.js  read-only live link to GymOrgPro's Firebase (optional)
+  chalk-docx.js       builds the Word (.docx) lesson plans (no libraries)
   images/             skill diagrams
