@@ -12,6 +12,7 @@ const CHALK_DATA = window.CHALK_DATA;
 const CHALK_WARMUP = window.CHALK_WARMUP;
 const CHALK_ALP = window.CHALK_ALP || { cols: [], apparatus: {} };
 const GB = window.GymOrgBridge;
+const LIVE = window.ChalkLive; // read-only live connector to GymOrgPro's Firebase (optional; absent = file-only)
 const imgSrc = (f) => "images/" + f;
 
 const NAVY = "#211a4d";
@@ -120,14 +121,18 @@ function ChalkApp() {
   const [gymorg, setGymorg] = useState(null); // parsed backup {gymName,squads,stations,blocks}
   const [gBlockId, setGBlockId] = useState("");
   const [gSquadId, setGSquadId] = useState("");
-  const [gSessionIdx, setGSessionIdx] = useState(0); // index into sessionsForSquad list
-  const [gWeek, setGWeek] = useState("week1");
+  const [gSessionIdx, setGSessionIdx] = useState(0); // index into the dated-session list
   const [squadMap, setSquadMap] = useState(() => LS.get("chalk-gymorg-squadmap", {}));
   const [stationMap, setStationMap] = useState(() => LS.get("chalk-gymorg-stationmap", {}));
   const [alpMap, setAlpMap] = useState(() => LS.get("chalk-gymorg-alpmap", {}));
   const [prefillMode, setPrefillMode] = useState("fresh"); // fresh | last
   const [gymorgError, setGymorgError] = useState("");
   const fileInputRef = useRef(null);
+  // Live (no-import) connection to GymOrgPro's Firebase — all optional/read-only.
+  const [liveRosters, setLiveRosters] = useState(null); // null=not connected, {}=index loaded
+  const [liveRosterId, setLiveRosterId] = useState("");
+  const [liveStatus, setLiveStatus] = useState("");     // "", "connecting", "live"
+  const liveUnsubRef = useRef(null);
 
   const apparatusHasAlp = !!CHALK_ALP.apparatus[tab];
   useEffect(() => { if (!apparatusHasAlp && mode === "alp") setMode("club"); }, [tab]);
@@ -284,40 +289,86 @@ function ChalkApp() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      try {
-        const parsed = GB.parseBackup(reader.result);
-        setGymorg(parsed);
-        setGymorgError("");
-        const firstBlock = parsed.blocks[0];
-        setGBlockId(firstBlock ? firstBlock.id : "");
-        setGSquadId(parsed.squads[0] ? parsed.squads[0].id : "");
-        setGSessionIdx(0);
-        // Seed sensible auto-guessed defaults for anything not already mapped.
-        const candidates = allChalkApparatus();
-        const nextStationMap = { ...stationMap };
-        parsed.stations.forEach((s) => { if (!nextStationMap[s.id]) nextStationMap[s.id] = guessApparatus(s.name, candidates); });
-        setStationMap(nextStationMap); LS.set("chalk-gymorg-stationmap", nextStationMap);
-        const nextSquadMap = { ...squadMap };
-        parsed.squads.forEach((s) => { if (!nextSquadMap[s.id]) nextSquadMap[s.id] = guessLevel(s.name, ALL_LEVELS); });
-        setSquadMap(nextSquadMap); LS.set("chalk-gymorg-squadmap", nextSquadMap);
-      } catch (err) {
-        setGymorgError(err.message || "Couldn't read that file.");
-      }
+      try { applyParsed(GB.parseBackup(reader.result)); }
+      catch (err) { setGymorgError(err.message || "Couldn't read that file."); }
     };
     reader.readAsText(file);
   }
 
+  // Single ingest path shared by file import AND the live connection: takes a
+  // parsed backup and seeds the UI + auto-guessed mappings. Preserves the block
+  // the user was already on (so a live re-sync doesn't yank them elsewhere).
+  function applyParsed(parsed) {
+    setGymorg(parsed);
+    setGymorgError("");
+    // Keep the user's current block if it still exists (so a live re-sync doesn't
+    // jump them), else the active block, else the first block.
+    const bid = (gBlockId && parsed.blocks.some((b) => b.id === gBlockId)) ? gBlockId
+      : (parsed.activeBlockId && parsed.blocks.some((b) => b.id === parsed.activeBlockId) ? parsed.activeBlockId
+      : (parsed.blocks[0] ? parsed.blocks[0].id : ""));
+    // Default the squad to one that's actually scheduled in that block, not just
+    // the first squad in the org (which may not train in this block at all).
+    const blk = parsed.blocks.find((b) => b.id === bid);
+    const blockSquads = (blk && blk.squadIds && blk.squadIds.length) ? blk.squadIds : parsed.squads.map((s) => s.id);
+    const sid = (gSquadId && blockSquads.indexOf(gSquadId) !== -1) ? gSquadId : (blockSquads[0] || "");
+    setGBlockId(bid);
+    setGSquadId(sid);
+    setGSessionIdx((idx) => idx || 0);
+    const candidates = allChalkApparatus();
+    setStationMap((prevMap) => {
+      const next = { ...prevMap };
+      parsed.stations.forEach((s) => { if (!next[s.id]) next[s.id] = guessApparatus(s.name, candidates); });
+      LS.set("chalk-gymorg-stationmap", next); return next;
+    });
+    setSquadMap((prevMap) => {
+      const next = { ...prevMap };
+      parsed.squads.forEach((s) => { if (!next[s.id]) next[s.id] = guessLevel(s.name, ALL_LEVELS); });
+      LS.set("chalk-gymorg-squadmap", next); return next;
+    });
+  }
+
+  // Connect to GymOrgPro's Firebase (read-only) and load the roster list.
+  function connectLive() {
+    if (!LIVE || !LIVE.available()) return;
+    setLiveStatus("connecting"); setGymorgError("");
+    LIVE.listRosters((index) => {
+      setLiveRosters(index || {});
+      // Pre-select the last roster used here, else GymOrgPro's default, else first.
+      const saved = LS.get("chalk-gymorg-liveroster", "");
+      const ids = Object.keys(index || {}).filter((id) => !(index[id] && index[id].hidden));
+      LIVE.getDefaultRosterId().then((def) => {
+        setLiveRosterId((prev) => prev || (saved && index[saved] ? saved : (def && index[def] ? def : (ids[0] || ""))));
+      }).catch(() => setLiveRosterId((prev) => prev || (saved && index[saved] ? saved : (ids[0] || ""))));
+    }, (e) => { setLiveStatus(""); setGymorgError("Couldn't reach GymOrgPro live (offline?). You can still load a backup file."); });
+  }
+
+  // Subscribe to one roster live — every save in GymOrgPro re-applies here.
+  function selectLiveRoster(rosterId) {
+    if (!LIVE || !rosterId) return;
+    setLiveRosterId(rosterId);
+    LS.set("chalk-gymorg-liveroster", rosterId);
+    if (liveUnsubRef.current) { liveUnsubRef.current(); liveUnsubRef.current = null; }
+    setLiveStatus("connecting");
+    LIVE.subscribeRoster(rosterId, (blob) => {
+      try { applyParsed(GB.parseBackup(blob)); setLiveStatus("live"); }
+      catch (err) { setGymorgError(err.message || "That roster couldn't be read."); }
+    }, (e) => { setLiveStatus(""); setGymorgError(e.message || "Live roster read failed."); }).then((unsub) => { liveUnsubRef.current = unsub; });
+  }
+
+  useEffect(() => () => { if (liveUnsubRef.current) liveUnsubRef.current(); }, []);
+
   const gBlock = useMemo(() => gymorg && gymorg.blocks.find((b) => b.id === gBlockId), [gymorg, gBlockId]);
   const gSquad = useMemo(() => gymorg && gymorg.squads.find((s) => s.id === gSquadId), [gymorg, gSquadId]);
-  const gSessions = useMemo(() => (gBlock && gSquadId) ? GB.sessionsForSquad(gBlock, gSquadId) : [], [gBlock, gSquadId]);
-  const gCurrent = gSessions[gSessionIdx] || null;
-  const gRotation = useMemo(() => (gBlock && gSquadId && gCurrent) ? GB.rotationForSession(gBlock, gSquadId, gCurrent.weekday, gCurrent.session) : null, [gBlock, gSquadId, gCurrent]);
-  const gLegs = gRotation ? (gWeek === "week2" ? gRotation.week2 : gRotation.week1) : [];
-  const weeksDiffer = gRotation && JSON.stringify(gRotation.week1) !== JSON.stringify(gRotation.week2);
+  const gAllDated = useMemo(() => (gymorg && gBlock) ? GB.datedSessions(gymorg, gBlock) : [], [gymorg, gBlock]);
+  const gSessions = useMemo(() => gSquadId ? GB.datedForSquad(gAllDated, gSquadId) : [], [gAllDated, gSquadId]);
+  const gCurrent = gSessions[gSessionIdx] || gSessions[0] || null;
+  const gLegs = gCurrent ? gCurrent.legs : [];
+  // Reset to the first lesson whenever the block or squad changes.
+  useEffect(() => { setGSessionIdx(0); }, [gBlockId, gSquadId]);
 
   const gMappedLevel = gSquad ? (squadMap[gSquad.id] || "") : "";
   const gAlpIdx = gSquad ? (alpMap[gSquad.id] != null ? alpMap[gSquad.id] : 3) : 3;
-  const gKey = (gBlock && gSquadId && gCurrent) ? GB.sessionKey(gBlock.id, gSquadId, gCurrent.weekday, gCurrent.session.id) + "::" + gWeek : null;
+  const gKey = gCurrent ? gCurrent.key : null;
 
   function historySkillsFor(key) { return LS.get("chalk-gymorg-history", {})[key] || {}; }
   function saveHistorySkillsFor(key, sectionsInRotation) {
@@ -377,12 +428,9 @@ function ChalkApp() {
     });
   }
 
-  function goToSession(idx) {
-    setGSessionIdx(idx);
-    setGWeek("week1");
-  }
-  function nextLesson() { if (gSessions.length) goToSession((gSessionIdx + 1) % gSessions.length); }
-  function prevLesson() { if (gSessions.length) goToSession((gSessionIdx - 1 + gSessions.length) % gSessions.length); }
+  function goToSession(idx) { setGSessionIdx(Math.max(0, Math.min(idx, gSessions.length - 1))); }
+  function nextLesson() { if (gSessionIdx < gSessions.length - 1) setGSessionIdx(gSessionIdx + 1); }
+  function prevLesson() { if (gSessionIdx > 0) setGSessionIdx(gSessionIdx - 1); }
 
   const sidebarProps = { level, focus, duration, orderedSections, bySection, selectedList, copyPlan, printPlan, clearAll, setSelected, setLightbox };
 
@@ -410,7 +458,6 @@ function ChalkApp() {
               gymorg={gymorg} gymorgError={gymorgError} fileInputRef={fileInputRef} handleFile={handleFile}
               gBlockId={gBlockId} setGBlockId={setGBlockId} gSquadId={gSquadId} setGSquadId={setGSquadId}
               gSessions={gSessions} gSessionIdx={gSessionIdx} goToSession={goToSession}
-              gWeek={gWeek} setGWeek={setGWeek} weeksDiffer={weeksDiffer}
               gLegs={gLegs} stationMap={stationMap} setStationMap={setStationMap}
               gSquad={gSquad} squadMap={squadMap} setSquadMap={setSquadMap}
               alpMap={alpMap} setAlpMap={setAlpMap} gAlpIdx={gAlpIdx}
@@ -418,6 +465,8 @@ function ChalkApp() {
               jumpToLeg={jumpToLeg} applyPrefillToRotation={applyPrefillToRotation}
               nextLesson={nextLesson} prevLesson={prevLesson}
               activeTab={tab} setFocus={setFocus} setDuration={setDuration}
+              liveRosters={liveRosters} liveRosterId={liveRosterId} liveStatus={liveStatus}
+              connectLive={connectLive} selectLiveRoster={selectLiveRoster}
             />
           )}
 
@@ -680,19 +729,44 @@ function GymOrgPanel(props) {
   const {
     gymorg, gymorgError, fileInputRef, handleFile,
     gBlockId, setGBlockId, gSquadId, setGSquadId,
-    gSessions, gSessionIdx, goToSession, gWeek, setGWeek, weeksDiffer,
+    gSessions, gSessionIdx, goToSession,
     gLegs, stationMap, setStationMap, gSquad, squadMap, setSquadMap,
     alpMap, setAlpMap, gAlpIdx, prefillMode, setPrefillMode,
     jumpToLeg, applyPrefillToRotation, nextLesson, prevLesson, activeTab,
+    liveRosters, liveRosterId, liveStatus, connectLive, selectLiveRoster,
   } = props;
+
+  const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const fmtDated = (s) => {
+    const parts = String(s.date || "").split("-");
+    const dm = parts.length === 3 ? `${+parts[2]} ${MON[+parts[1] - 1]}` : s.date;
+    const lbl = s.session && s.session.label && s.session.label !== "Session" ? ` (${s.session.label})` : "";
+    return `${s.dow} ${dm} · ${GB.fmtTime(s.startTime)}${lbl}`;
+  };
 
   if (!gymorg) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 p-5 mb-4">
         <div className="flex items-center gap-2 mb-1"><IconLayers size={16} style={{ color: NAVY }} /><h3 className="disp font-bold text-slate-800">Import from GymOrgPro</h3></div>
-        <p className="text-sm text-slate-500 mb-3">In GymOrgPro, go to <b>Organisation → Export backup</b> and download the .json file. Load it here to pick a Block and Squad and pull in that squad&rsquo;s rotation automatically.</p>
-        <button onClick={() => fileInputRef.current && fileInputRef.current.click()} className="disp font-semibold text-sm text-white rounded-lg py-2 px-4 inline-flex items-center gap-1.5" style={{ background: NAVY }}><IconUpload size={15} /> Choose backup .json</button>
-        <input ref={fileInputRef} type="file" accept="application/json,.json" onChange={handleFile} className="hidden" />
+        <p className="text-sm text-slate-500 mb-3">Connect straight to GymOrgPro to pull a squad&rsquo;s rotation automatically &mdash; no export or import. Every change saved in GymOrgPro updates here live. Offline, load a backup .json instead.</p>
+        {LIVE && LIVE.available() && liveRosters === null && (
+          <button onClick={connectLive} disabled={liveStatus === "connecting"} className="disp font-semibold text-sm text-white rounded-lg py-2 px-4 inline-flex items-center gap-1.5 disabled:opacity-50" style={{ background: NAVY }}><IconRefresh size={15} /> {liveStatus === "connecting" ? "Connecting\u2026" : "Connect to GymOrgPro"}</button>
+        )}
+        {liveRosters !== null && (
+          <div className="flex flex-col gap-2 mb-1">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Roster</span>
+              <select value={liveRosterId} onChange={(e) => selectLiveRoster(e.target.value)} className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                <option value="">&mdash; choose a roster &mdash;</option>
+                {Object.keys(liveRosters).filter((id) => !(liveRosters[id] && liveRosters[id].hidden)).map((id) => <option key={id} value={id}>{(liveRosters[id] && liveRosters[id].name) || id}</option>)}
+              </select>
+            </label>
+          </div>
+        )}
+        <div className="mt-3 pt-3 border-t border-slate-100">
+          <button onClick={() => fileInputRef.current && fileInputRef.current.click()} className="text-[13px] text-slate-500 hover:text-slate-700 inline-flex items-center gap-1.5"><IconUpload size={13} /> Or load a backup .json (offline)</button>
+          <input ref={fileInputRef} type="file" accept="application/json,.json" onChange={handleFile} className="hidden" />
+        </div>
         {gymorgError && <p className="text-sm text-red-600 mt-2">{gymorgError}</p>}
       </div>
     );
@@ -700,13 +774,22 @@ function GymOrgPanel(props) {
 
   const blocks = gymorg.blocks;
   const squads = gymorg.squads;
-  const gCurrent = gSessions[gSessionIdx];
+  const gCurrent = gSessions[gSessionIdx] || gSessions[0] || null;
   const stationsUsed = Array.from(new Set((gLegs || []).map((l) => l.stationId))).map((id) => gymorg.stations.find((s) => s.id === id)).filter(Boolean);
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4">
       <div className="flex items-center gap-2 mb-3"><IconLayers size={16} style={{ color: NAVY }} /><h3 className="disp font-bold text-slate-800">GymOrgPro{gymorg.gymName ? ` · ${gymorg.gymName}` : ""}</h3>
-        <button onClick={() => fileInputRef.current && fileInputRef.current.click()} className="ml-auto text-[11px] text-slate-500 hover:text-slate-700 inline-flex items-center gap-1"><IconUpload size={12} /> Replace file</button>
+        {liveStatus === "live" && (
+          <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Live</span>
+        )}
+        {liveRosters !== null ? (
+          <select value={liveRosterId} onChange={(e) => selectLiveRoster(e.target.value)} className="ml-auto text-[11px] bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-slate-600">
+            {Object.keys(liveRosters).filter((id) => !(liveRosters[id] && liveRosters[id].hidden)).map((id) => <option key={id} value={id}>{(liveRosters[id] && liveRosters[id].name) || id}</option>)}
+          </select>
+        ) : (
+          <button onClick={() => fileInputRef.current && fileInputRef.current.click()} className="ml-auto text-[11px] text-slate-500 hover:text-slate-700 inline-flex items-center gap-1"><IconUpload size={12} /> Replace file</button>
+        )}
         <input ref={fileInputRef} type="file" accept="application/json,.json" onChange={handleFile} className="hidden" />
       </div>
 
@@ -745,19 +828,16 @@ function GymOrgPanel(props) {
         <p className="text-sm text-slate-400 bg-slate-50 border border-dashed border-slate-300 rounded-lg p-3">This squad has no scheduled sessions in this block.</p>
       ) : (
         <>
-          <div className="flex items-center gap-2 mb-3">
-            <button onClick={prevLesson} className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-600"><IconChevronLeft size={16} /></button>
+          <div className="flex items-center gap-2 mb-2">
+            <button onClick={prevLesson} disabled={gSessionIdx <= 0} className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-600 disabled:opacity-40"><IconChevronLeft size={16} /></button>
             <select value={gSessionIdx} onChange={(e) => goToSession(Number(e.target.value))} className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm">
-              {gSessions.map((s, i) => <option key={i} value={i}>{GB.DAY_NAMES[s.weekday]} {GB.fmtTime(s.session.startTime)} · {s.session.duration} min{s.session.label && s.session.label !== "Session" ? ` (${s.session.label})` : ""}</option>)}
+              {gSessions.map((s, i) => <option key={s.key} value={i}>{fmtDated(s)}</option>)}
             </select>
-            <button onClick={nextLesson} className="disp font-semibold text-sm text-white rounded-lg px-3 py-2 flex items-center gap-1" style={{ background: NAVY }}>Next lesson <IconChevronRight size={16} /></button>
+            <button onClick={nextLesson} disabled={gSessionIdx >= gSessions.length - 1} className="disp font-semibold text-sm text-white rounded-lg px-3 py-2 flex items-center gap-1 disabled:opacity-40" style={{ background: NAVY }}>Next lesson <IconChevronRight size={16} /></button>
           </div>
-
-          {weeksDiffer && (
-            <div className="flex gap-1 mb-3">
-              {["week1", "week2"].map((w) => <button key={w} onClick={() => setGWeek(w)} className="text-[11px] font-semibold px-2.5 py-1 rounded-md border" style={gWeek === w ? { background: NAVY, borderColor: NAVY, color: "#fff" } : { borderColor: "#e2e8f0", color: "#64748b" }}>{w === "week1" ? "Week 1" : "Week 2"}</button>)}
-            </div>
-          )}
+          <div className="text-[11px] text-slate-400 mb-3">
+            Lesson {gSessionIdx + 1} of {gSessions.length} in this block{gCurrent && gCurrent.coachName ? ` · Coach ${gCurrent.coachName}` : ""}{gCurrent ? ` · ${gCurrent.duration} min` : ""}
+          </div>
 
           <div className="mb-3">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Rotation this session</div>

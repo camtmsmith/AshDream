@@ -1,5 +1,23 @@
-CHALK — Gymnastics Session Builder (V4)
+CHALK — Gymnastics Session Builder (V5)
 ========================================
+
+WHAT'S NEW IN V5 — LIVE CONNECTION TO GYMORGPRO (no export/import)
+GymOrgPro now publishes its schedule to a shared Firebase database, and Chalk
+can read it directly. In the GymOrgPro panel, click "Connect to GymOrgPro",
+pick a roster, and the squad rotations load automatically — no "Export backup"
+step. Whenever someone saves a change in GymOrgPro, Chalk updates live (a green
+"Live" chip shows when connected). The connection is READ-ONLY: Chalk can never
+change a gym's schedule.
+
+Needs internet (it reads the live database). Offline, the old "load a backup
+.json" import still works exactly as before — it's now the fallback link under
+the Connect button. The live connector lives in chalk-gymorg-live.js; delete
+that one file and Chalk reverts cleanly to file-import-only.
+
+Security note: the connection uses the same open ("test mode") database
+GymOrgPro ships with, so no login is needed. If GymOrgPro's database rules are
+later locked down, keep public READ on /rosters and /rosterIndex (or add
+anonymous auth to both apps) so Chalk can still read.
 
 WHAT'S NEW IN V4
 A "GymOrgPro" panel that pulls a squad's rotation straight out of a GymOrgPro
@@ -58,23 +76,11 @@ HOW TO RUN IT
 You can also host the folder on any web server / shared drive and open
 index.html from there.
 
-NOTE: React, ReactDOM and the app itself are now bundled into a single local
-file (app.js), so the page loads and runs by just double-clicking index.html
-with no internet and no build step at open time. The ONLY things still coming
-from a CDN are the Tailwind styling engine and the web fonts. That means:
-
-  - Online  : full styling, exactly as designed.
-  - Offline : the app still opens and works, but looks plain (system font,
-              no Tailwind layout polish) until you're back online.
-
-Earlier V4 loaded React + Babel from a CDN and transformed app.jsx in the
-browser. That silently failed when opened via file:// (browsers block the
-cross-origin fetch Babel uses to read app.jsx), which is why the page came up
-blank. Bundling to app.js removes that fetch entirely and fixes it.
-
-If you want it 100% offline including styling, download Tailwind and the font
-CSS once and point the two remaining CDN <script>/@import lines in index.html
-at local copies.
+NOTE: the app needs an internet connection every time it opens now (V4 loads
+React, ReactDOM and Babel from a CDN alongside Tailwind/fonts, so app.jsx can
+stay plain, readable JSX with no build step). If you need it to run 100%
+offline, download those four scripts once and point the <script> tags at
+local copies instead of the CDN URLs in index.html.
 
 WHAT'S EASY TO CHANGE NEXT
 - Edit the Warm-up list, skill text, or coaching points: it all lives in
@@ -89,30 +95,10 @@ WHAT'S EASY TO CHANGE NEXT
   gets hosted inside Claude.ai alongside GymOrgPro's own window.storage use.
 
 FILES
-  index.html         the page shell (loads data.js, gymorg-bridge.js, app.js)
-  app.js              the built app bundle (React + ReactDOM + app in one file)
-                      — this is what the page actually runs. LOAD-BEARING.
-  app.jsx             the app SOURCE (readable JSX). Edit this, then rebuild
-                      app.js from it (see REBUILDING below). Not loaded directly.
+  index.html         the page shell (CDN scripts + styling)
+  app.jsx             the app (React, plain JSX — readable, no build step)
   data.js             all levels, apparatus, skills, coaching points, images
-  gymorg-bridge.js    parses a GymOrgPro backup export into rotations
+  gymorg-bridge.js    turns a GymOrgPro roster (file OR live) into rotations,
+                      dated sessions, headers, warm-ups
+  chalk-gymorg-live.js  read-only live link to GymOrgPro's Firebase (optional)
   images/             skill diagrams
-
-REBUILDING app.js AFTER EDITING app.jsx
-app.js is generated from app.jsx with esbuild (React bundled in). To rebuild:
-
-  1. Install Node.js (https://nodejs.org).
-  2. In a terminal, in this folder:
-       npm install esbuild react@18 react-dom@18
-  3. Create entry.jsx containing these 3 lines, then the whole of app.jsx:
-       import React from "react";
-       import * as ReactDOMClient from "react-dom/client";
-       const ReactDOM = ReactDOMClient;
-     (i.e. paste app.jsx's contents underneath those three lines)
-  4. Build:
-       npx esbuild entry.jsx --bundle --minify --format=iife \
-         --target=es2018 --define:process.env.NODE_ENV='"production"' \
-         --outfile=app.js
-  5. Reload index.html.
-
-If you never edit app.jsx, you never need any of this — the app just runs.

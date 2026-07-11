@@ -18,13 +18,17 @@
   <!-- Data (unchanged from V3): skills, warm-ups, MAG ALP pathway matrix -->
   <script src="data.js"></script>
 
-  <!-- New in V4: pure-JS helpers for reading a GymOrgPro backup export -->
+  <!-- Reads a GymOrgPro backup (file) into the data Chalk needs -->
   <script src="gymorg-bridge.js"></script>
 
+  <!-- New in V5: read-only LIVE connection to GymOrgPro's Firebase, so a squad's
+       rotation can be pulled with no export/import. Optional — if this file is
+       removed, Chalk silently falls back to file import only. -->
+  <script src="chalk-gymorg-live.js"></script>
+
   <!-- App runtime: React 18 + ReactDOM + the app, prebundled into one plain
-       script by esbuild. No in-browser Babel, no XHR — so this works when you
-       just double-click index.html (file://). Edit app.jsx and rebuild to
-       regenerate app.js. -->
+       script by esbuild. No in-browser Babel, no XHR — works on file:// by
+       double-clicking. Edit app.jsx and rebuild to regenerate app.js. -->
   <script src="app.js"></script>
 </body>
 </html>
