@@ -14,7 +14,7 @@ const CHALK_ALP = window.CHALK_ALP || { cols: [], apparatus: {} };
 const GB = window.GymOrgBridge;
 const LIVE = window.ChalkLive; // read-only live connector to GymOrgPro's Firebase (optional; absent = file-only)
 const imgSrc = (f) => "images/" + f;
-const APP_VERSION = "v5.5";
+const APP_VERSION = "v5.6";
 const MONTHS3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const fmtShortDate = (iso) => { const p = String(iso || "").split("-"); return p.length === 3 ? `${+p[2]} ${MONTHS3[+p[1] - 1]}` : iso; };
 
@@ -660,6 +660,85 @@ function ChalkApp() {
 
   function jumpToLeg(stationId, legIdx) { focusSlot(legIdx != null ? legIdx : 0, stationId); }
 
+  // ---- "Copy previous" (per rotation) --------------------------------------
+  // A squad might be on Floor 3 this Monday, then not again for a fortnight. When
+  // it does come back around, the coach wants what they ran LAST time on that
+  // station — not last lesson (which was a different apparatus entirely). So this
+  // walks BACKWARDS through this squad's lessons in the block, finds the most
+  // recent one whose rotation included this same station AND had skills planned
+  // for it, and hands those skills back. Repeat them as-is, or use them as the
+  // starting point and progress from there.
+
+  // The skills that were planned for one leg of an EARLIER lesson. GymOrgPro's
+  // seeded warm-up/warm-down items are skipped (they're not rotation skills), and
+  // entries saved before slots existed fall back to matching on apparatus.
+  function entriesForLeg(plan, legs, legIdx) {
+    const section = legs[legIdx] ? stationMap[legs[legIdx].stationId] : "";
+    return Object.entries(plan || {}).filter(([, v]) => {
+      if (v.gop) return false;
+      if (typeof v.slot === "number") return v.slot === legIdx;
+      if (v.slot === "W" || v.slot === "D") return false;
+      return !!section && v.section === section;
+    });
+  }
+
+  // The most recent earlier lesson (this squad, this block) that used `stationId`
+  // and had skills on it. Returns { session, items } or null. If a lesson visited
+  // the station twice, its LAST visit wins — that's the freshest thinking.
+  function prevStationUse(stationId) {
+    if (!gCurrent || !stationId) return null;
+    const i = gSessions.findIndex((s) => s.key === gCurrent.key);
+    const from = i >= 0 ? i : gSessions.length;
+    for (let j = from - 1; j >= 0; j--) {
+      const s = gSessions[j];
+      const plan = plansRef.current[s.key];   // j < i, so never the on-screen `selected`
+      if (!plan) continue;
+      const legIdxs = (s.legs || []).map((l, k) => (l.stationId === stationId ? k : -1)).filter((k) => k >= 0);
+      for (let li = legIdxs.length - 1; li >= 0; li--) {
+        const items = entriesForLeg(plan, s.legs, legIdxs[li]);
+        if (items.length) return { session: s, items };
+      }
+    }
+    return null;
+  }
+
+  // Precomputed per rotation, so the button can show the date it would copy from
+  // (and go dim when there's nothing behind it yet).
+  const prevByLeg = useMemo(() => {
+    const out = {};
+    gLegs.forEach((leg, i) => { out[i] = leg.stationId ? prevStationUse(leg.stationId) : null; });
+    return out;
+  }, [gSessions, gCurrent, gLegs, stationMap, selected]);
+
+  const [planFlash, setPlanFlash] = useState("");
+  const flashTimerRef = useRef(null);
+  function flashPlan(msg) {
+    setPlanFlash(msg);
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = setTimeout(() => setPlanFlash(""), 5000);
+  }
+
+  // Copy that earlier rotation's skills into THIS rotation. Existing skills in the
+  // block are kept (a copy tops it up, it never wipes) and the block is selected
+  // afterwards, so the coach can immediately add the progression on top.
+  function copyPreviousIntoLeg(legIdx) {
+    const leg = gLegs[legIdx];
+    if (!leg || !leg.stationId) return;
+    const hit = prevStationUse(leg.stationId);
+    if (!hit) { flashPlan(`Nothing to copy — no earlier lesson in this block has planned skills for ${leg.stationName || "this station"}.`); return; }
+    setSelected((prev) => {
+      const next = { ...prev };
+      hit.items.forEach(([id, v]) => {
+        const base = id.slice(id.indexOf("|") + 1);   // drop the old slot prefix
+        next[`${legIdx}|${base}`] = { ...v, slot: legIdx };
+      });
+      return next;
+    });
+    setActiveSlot(legIdx);
+    const n = hit.items.length;
+    flashPlan(`Copied ${n} skill${n === 1 ? "" : "s"} from ${hit.session.dow} ${fmtShortDate(hit.session.date)} — the last time this squad was on ${leg.stationName || "this station"}.`);
+  }
+
   function applyPrefillToRotation() {
     if (!gLegs.length || !gMappedLevel) return;
     const secs = gLegs.map((l) => stationMap[l.stationId]).filter(Boolean);
@@ -791,7 +870,7 @@ function ChalkApp() {
   function prevLesson() { if (gSessionIdx > 0) setGSessionIdx(gSessionIdx - 1); }
 
   const planContext = gCurrent ? `${gSquad ? gSquad.name + " · " : ""}${gCurrent.dow} ${fmtShortDate(gCurrent.date)}` : "";
-  const planProps = { gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, selected, setSelected, setLightbox, orderedSections, bySection, bySlot, targetSlot, focusSlot, level, focus, duration, copyPlan, printPlan, clearAll, planContext, selectedList, exportOne, exportMany, gSessions, gAllDated };
+  const planProps = { gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, selected, setSelected, setLightbox, orderedSections, bySection, bySlot, targetSlot, focusSlot, level, focus, duration, copyPlan, printPlan, clearAll, planContext, selectedList, exportOne, exportMany, gSessions, gAllDated, prevByLeg, copyPreviousIntoLeg, planFlash, setPlanFlash };
 
   return (
     <div style={{ fontFamily: "Inter, system-ui, sans-serif", color: INK }} className="min-h-screen bg-slate-100">
@@ -989,7 +1068,7 @@ function ChalkApp() {
 }
 
 // ---------------------------------------------------------- session plan --
-function LessonPlanDoc({ gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, selected, setSelected, setLightbox, orderedSections, bySection, bySlot, targetSlot, focusSlot, level, focus, duration, copyPlan, printPlan, clearAll, planContext, selectedList, exportOne, exportMany, gSessions, gAllDated }) {
+function LessonPlanDoc({ gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, selected, setSelected, setLightbox, orderedSections, bySection, bySlot, targetSlot, focusSlot, level, focus, duration, copyPlan, printPlan, clearAll, planContext, selectedList, exportOne, exportMany, gSessions, gAllDated, prevByLeg, copyPreviousIntoLeg, planFlash, setPlanFlash }) {
   const hasSession = !!(gLegs && gLegs.length);
   const remove = (id) => setSelected((prev) => { const n = { ...prev }; delete n[id]; return n; });
   const headerUri = gHeader ? GB.headerDataUri(gHeader) : "";
@@ -1032,22 +1111,41 @@ function LessonPlanDoc({ gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, s
 
   // A block that can be SELECTED as the target for new skills. Whatever block is
   // selected receives every skill you tick, from any apparatus.
-  const SlotBlock = ({ slotId, stationId, title, color, minutes, skills, subtitle, empty }) => {
+  const SlotBlock = ({ slotId, stationId, title, color, minutes, skills, subtitle, empty, prev, onCopyPrev }) => {
     const active = targetSlot === slotId;
     const c = color || NAVY;
+    // The header is a div (not a button) because "Copy previous" is a button of
+    // its own, and a button can't legally nest inside another button.
+    const select = () => focusSlot(slotId, stationId);
     return (
       <div className="rounded-lg overflow-hidden border transition-shadow" style={active ? { borderColor: c, boxShadow: `0 0 0 2px ${c}33` } : { borderColor: "#e2e8f0" }}>
-        <button onClick={() => focusSlot(slotId, stationId)} className="w-full flex items-center gap-2 px-3 py-2 text-left" style={{ background: c + (active ? "26" : "14") }}>
+        <div role="button" tabIndex={0} onClick={select}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(); } }}
+          className="w-full flex items-center gap-2 px-3 py-2 text-left cursor-pointer select-none" style={{ background: c + (active ? "26" : "14") }}>
           <span className="w-2 h-2 rounded-full shrink-0" style={{ background: c }} />
           <span className="disp text-[13px] font-bold uppercase tracking-wide truncate" style={{ color: c }}>{title}</span>
           {minutes != null && <span className="text-[11px] text-slate-500 shrink-0">{minutes} min</span>}
           <span className="ml-auto flex items-center gap-1.5 shrink-0">
             {skills && skills.length > 0 && <span className="text-[11px] text-slate-400">{skills.length}</span>}
+            {onCopyPrev && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onCopyPrev(); }}
+                disabled={!prev}
+                title={prev
+                  ? `Copy the ${prev.items.length} skill${prev.items.length === 1 ? "" : "s"} planned for this station on ${prev.session.dow} ${fmtShortDate(prev.session.date)}`
+                  : "No earlier lesson in this block has planned skills for this station yet"}
+                className="text-[10px] font-semibold uppercase tracking-wide rounded px-1.5 py-0.5 border inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-default"
+                style={{ color: c, borderColor: c + "55", background: "#ffffffcc" }}>
+                <IconRefresh size={10} />
+                <span className="hidden sm:inline">Copy previous</span><span className="sm:hidden">Copy</span>
+                {prev && <span className="font-normal opacity-70">{fmtShortDate(prev.session.date)}</span>}
+              </button>
+            )}
             {active
               ? <span className="text-[10px] font-bold uppercase tracking-wide text-white rounded px-1.5 py-0.5" style={{ background: c }}>Adding here</span>
               : <span className="text-[11px] font-semibold inline-flex items-center" style={{ color: c }}>Select<IconChevronRight size={13} /></span>}
           </span>
-        </button>
+        </div>
         <div className="px-3 py-2">
           {subtitle && <div className="text-[11px] text-slate-400 mb-1 leading-snug">{subtitle}</div>}
           {skills && skills.length > 0
@@ -1071,6 +1169,12 @@ function LessonPlanDoc({ gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, s
       </div>
 
       <div className="max-h-[70vh] lg:max-h-[calc(100vh-9rem)] overflow-auto p-3 space-y-2.5">
+        {planFlash && (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600 flex items-start gap-2">
+            <span className="flex-1 leading-snug">{planFlash}</span>
+            <button onClick={() => setPlanFlash && setPlanFlash("")} className="text-slate-400 hover:text-slate-700 shrink-0"><IconX size={12} /></button>
+          </div>
+        )}
         {hasSession ? (
           <>
             <SlotBlock slotId="W" title="Warm-up" color={APP_COLORS["Warm-up"] || NAVY} skills={bySlot["W"] || []}
@@ -1081,6 +1185,8 @@ function LessonPlanDoc({ gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, s
                 <SlotBlock key={i} slotId={i} stationId={leg.stationId}
                   title={`Rotation ${i + 1} · ${leg.gap ? "Break / free time" : (leg.stationName || "Station")}`}
                   color={APP_COLORS[app] || NAVY} minutes={leg.minutes} skills={bySlot[i] || []}
+                  prev={(prevByLeg && prevByLeg[i]) || null}
+                  onCopyPrev={leg.gap || !copyPreviousIntoLeg ? null : () => copyPreviousIntoLeg(i)}
                   empty="Select this block, then add any skills." />
               );
             })}

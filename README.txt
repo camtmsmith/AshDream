@@ -1,5 +1,27 @@
-CHALK — Gymnastics Session Builder (v5.5)
+CHALK — Gymnastics Session Builder (v5.6)
 ========================================
+
+WHAT'S NEW IN v5.6 — "COPY PREVIOUS" ON EVERY ROTATION
+Each rotation block now has a "Copy previous" button next to Select / Adding
+here. It looks BACKWARDS through this squad's lessons in the block, finds the
+last time they were on THAT station — whenever that was, a week ago or three —
+and copies the skills that were planned for it into this rotation.
+
+That's the difference from "Prefill → same as last time", which copies the whole
+previous LESSON. A squad might be on Floor 3 this Monday and not again for a
+fortnight; "Copy previous" follows the station, not the calendar, so a coach can
+repeat a rotation as-is or use it as the starting point and progress from there.
+
+  • The button shows the date it would copy from (e.g. "Copy previous 14 Jul"),
+    so you know what you're about to pull in before you click.
+  • It goes dim when there's nothing behind it yet (first time on that station in
+    this block, or that lesson was never planned).
+  • It TOPS UP, never wipes: anything already in the rotation stays, so you can
+    copy last time's skills and add the progression on top. Remove any you don't
+    want with the X, as usual.
+  • If a lesson visited the station twice, the later visit is the one copied.
+  • The rotation becomes the selected block afterwards, ready for new ticks.
+  • Warm-up and warm-down are untouched (they carry GymOrgPro's own items).
 
 WHAT'S NEW IN v5.5 — OPEN A LESSON STRAIGHT FROM GYMORGPRO'S CALENDAR
 In GymOrgPro's Calendar tab, every session row now has a "Chalk ↗" button (and
