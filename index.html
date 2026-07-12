@@ -26,8 +26,13 @@
        removed, Chalk silently falls back to file import only. -->
   <script src="chalk-gymorg-live.js"></script>
 
+  <!-- Skill diagrams as base64. A double-clicked file:// page is not allowed to
+       read its own image FILES, so the bytes must be inlined for the Word export
+       to embed them. The on-screen app still uses images/ directly. -->
+  <script src="images-b64.js"></script>
+
   <!-- New in v5.2: builds Word (.docx) lesson plans matching GymOrgPro's own
-       export, with the skills filled in. No libraries; works offline. -->
+       export, with the skills (and their diagrams) filled in. No libraries. -->
   <script src="chalk-docx.js"></script>
 
   <!-- App runtime: React 18 + ReactDOM + the app, prebundled into one plain

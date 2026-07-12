@@ -1,5 +1,38 @@
-CHALK — Gymnastics Session Builder (v5.2)
+CHALK — Gymnastics Session Builder (v5.4)
 ========================================
+
+WHAT'S NEW IN v5.4 — WARM-UP / WARM-DOWN ITEMS ARE EDITABLE
+GymOrgPro's warm-up and warm-down items (Leg Strength, Shaping, Stretch Program,
+Splits, etc.) now come across as individual entries in the Warm-up and Warm-down
+blocks, each with its duration and an X to remove it. Drop the ones that don't
+apply to a particular lesson and add your own skills alongside them. Removals are
+per lesson and stick - and they carry through to the exported Word document,
+where the items you kept appear in the Activity/Duration table exactly as
+GymOrgPro lays it out.
+
+Also fixed: connecting to GymOrgPro now actually opens the pre-selected roster.
+Previously it filled the roster dropdown but never loaded it, so blocks, squads
+and lessons stayed empty until you manually picked a different roster.
+
+WHAT'S NEW IN v5.3 — PICK ANY SKILL INTO ANY BLOCK + DIAGRAMS IN WORD
+Select a block on the left (a rotation, the Warm-up, or the Warm-down) and it
+shows "Adding here". EVERY skill you then tick goes into that block - no matter
+which apparatus it comes from. So you can put a shaping drill on the Beam
+rotation, or conditioning into the Warm-up. The block stays selected when you
+change apparatus tabs, so you can pull skills from several apparatus into the
+one rotation. The old "Additional skills" catch-all is gone - nothing is
+stranded any more.
+
+Warm-up and Warm-down are now full blocks, always present, that work exactly
+like the rotations. GymOrgPro's standard warm-up/warm-down items still show as
+the "Standard:" reference line, and any skills you add appear underneath them -
+and in the Word export as proper Skill/KCP rows.
+
+Skill DIAGRAMS are now embedded in the exported Word document, in the Skill
+column next to the skill name (up to 2 per skill), scaled to fit. This needs the
+new images-b64.js file, which holds the diagrams as data (a double-clicked
+file:// page is not allowed to read its own image files, so the bytes have to be
+inlined).
 
 WHAT'S NEW IN v5.2 — WORD (.docx) LESSON PLAN EXPORT
 Chalk now exports the SAME Word document GymOrgPro exports - same banner, same
@@ -17,10 +50,7 @@ Batch exports skip lessons with no skills chosen yet. Files are named like
 GymOrgPro's: 2026_Competitive_8_Term_3_block_Week_4_August_4_Tuesday.docx
 
 No install, no internet needed for the export itself - the Word file is built in
-the browser (chalk-docx.js). Note: skill diagrams are NOT embedded in the Word
-file, because a double-clicked file:// page isn't allowed to read the local image
-files. GymOrgPro's template has no diagrams either. Use Print/PDF if you want the
-diagrams on the page.
+the browser (chalk-docx.js). Skill diagrams ARE embedded (see v5.3 above).
 
 WHAT'S NEW IN v5.1 — ROTATION-ACCURATE LESSON PLAN OUTPUT
 The printed/PDF lesson plan is now built from the REAL GymOrgPro rotation, not
@@ -152,4 +182,5 @@ FILES
                       dated sessions, headers, warm-ups
   chalk-gymorg-live.js  read-only live link to GymOrgPro's Firebase (optional)
   chalk-docx.js       builds the Word (.docx) lesson plans (no libraries)
+  images-b64.js       skill diagrams as data, so they can go into the Word file
   images/             skill diagrams

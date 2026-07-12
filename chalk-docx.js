@@ -161,16 +161,66 @@
 
   // Equipment | Skill | KCP | Safety table for one circuit. Skills fill the rows;
   // blank rows pad it out so a coach can still write on the printed page.
-  function circuitTable(rows, minBlank) {
+  // An inline picture (used for the banner and for skill diagrams).
+  function pic(rid, cx, cy, id) {
+    return "<w:r><w:drawing>" +
+      '<wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">' +
+      '<wp:extent cx="' + cx + '" cy="' + cy + '"/><wp:effectExtent l="0" t="0" r="0" b="0"/>' +
+      '<wp:docPr id="' + id + '" name="Picture' + id + '"/><wp:cNvGraphicFramePr>' +
+      '<a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>' +
+      '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+      '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+      '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+      '<pic:nvPicPr><pic:cNvPr id="' + id + '" name="Picture' + id + '"/><pic:cNvPicPr/></pic:nvPicPr>' +
+      '<pic:blipFill><a:blip r:embed="' + rid + '" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>' +
+      "<a:stretch><a:fillRect/></a:stretch></pic:blipFill>" +
+      '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>' +
+      '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>' +
+      "</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>";
+  }
+
+  // Collects the diagrams a plan actually uses, giving each a relationship id and
+  // a media filename, scaled to fit the Skill column. The bytes come from
+  // window.CHALK_IMG (images-b64.js) because a file:// page can't read image files.
+  function imageCollector() {
+    var lib = global.CHALK_IMG || {};
+    var used = {}, order = [], nextId = 2; // rId1 is reserved for the banner
+    var MAX_CX = 1150000, MAX_CY = 800000; // EMU (~1.2in x 0.83in)
+    return {
+      lookup: function (fname) {
+        if (!fname) return null;
+        if (used[fname]) return used[fname];
+        var rec = lib[fname];
+        if (!rec || !rec.d) return null;
+        var w = rec.w || 120, h = rec.h || 90;
+        var scale = Math.min(MAX_CX / (w * 9525), MAX_CY / (h * 9525), 1);
+        var e = {
+          rid: "rId" + nextId, id: nextId, ext: rec.e || "gif", data: rec.d,
+          file: "media/img" + nextId + "." + (rec.e || "gif"),
+          cx: Math.round(w * 9525 * scale), cy: Math.round(h * 9525 * scale),
+        };
+        nextId++; used[fname] = e; order.push(e);
+        return e;
+      },
+      all: function () { return order; },
+    };
+  }
+
+  function circuitTable(rows, minBlank, imgs) {
     var W = 2410;
     var head = "<w:tr>" + ["Equipment", "Skill", "KCP", "Safety"].map(function (h) {
       return cell(W, para(run(h, { b: true })), "BFBFBF");
     }).join("") + "</w:tr>";
 
     var body = (rows || []).map(function (r) {
-      // Skill cell: name in bold, its group underneath in small grey — matching
-      // how the plan reads on screen.
-      var skillXml = para(run(r.skill || "", { b: true }), { spacing: false }) +
+      // Skill cell: the diagram (when the skill has one), then the name in bold
+      // with its family underneath in small grey — matching the on-screen plan.
+      var picXml = "";
+      (r.img || []).slice(0, 2).forEach(function (fname) {
+        var rec = imgs && imgs.lookup(fname);
+        if (rec) picXml += para(pic(rec.rid, rec.cx, rec.cy, rec.id), { spacing: false });
+      });
+      var skillXml = picXml + para(run(r.skill || "", { b: true }), { spacing: false }) +
         (r.sub ? para(run(r.sub, { color: "8A8A8A", sz: "16" })) : "");
       // KCP cell: one paragraph per coaching point.
       var cues = (r.kcp || []).filter(Boolean);
@@ -214,6 +264,7 @@
   // }
   function buildDocx(spec) {
     spec = spec || {};
+    var imgs = imageCollector();
     var hasBanner = !!(spec.banner && spec.banner.base64);
     var ext = hasBanner ? String(spec.banner.ext || "png").toLowerCase() : "png";
     if (ext === "jpg") ext = "jpeg";
@@ -250,14 +301,21 @@
     var aimLine = para(run("Lesson Aim/Theme: ", { b: true }) + run(spec.aim || "_______________________________________________________"));
 
     var circuitsXml = (spec.circuits || []).map(function (c) {
-      return sectionBar(c.title) + circuitTable(c.rows, c.rows && c.rows.length ? 1 : 5) + SPACER;
+      return sectionBar(c.title) + circuitTable(c.rows, c.rows && c.rows.length ? 1 : 5, imgs) + SPACER;
     }).join("");
+
+    // Warm-up / warm-down: GymOrgPro's standard activity list, plus (when Chalk
+    // has added skills to those blocks) a full Skill/KCP table like a circuit.
+    var warmRows = spec.warmupRows || [];
+    var coolRows = spec.warmdownRows || [];
+    var warmSkillsXml = warmRows.length ? circuitTable(warmRows, 0, imgs) : "";
+    var coolSkillsXml = coolRows.length ? circuitTable(coolRows, 0, imgs) : "";
 
     var body =
       bannerXml + metaLine1 + metaLine2 + aimLine + SPACER +
-      sectionBar("Warm-up") + activityTable(spec.warmup) + SPACER +
+      sectionBar("Warm-up") + activityTable(spec.warmup) + warmSkillsXml + SPACER +
       circuitsXml +
-      sectionBar("Warm-down") + activityTable(spec.warmdown && spec.warmdown.length ? spec.warmdown : [{ name: "Gymnasts stand on line. Coach dismisses gymnasts.", duration: "" }]) + SPACER +
+      sectionBar("Warm-down") + activityTable(spec.warmdown && spec.warmdown.length ? spec.warmdown : [{ name: "Gymnasts stand on line. Coach dismisses gymnasts.", duration: "" }]) + coolSkillsXml + SPACER +
       "<w:tbl>" + tblPr(9639) + '<w:tblGrid><w:gridCol w:w="9639"/></w:tblGrid>' +
         "<w:tr>" + cell(9639, para(run("Notes", { b: true })), "BFBFBF") + "</w:tr>" +
         "<w:tr>" + cell(9639, para("")) + "</w:tr>" +
@@ -287,6 +345,9 @@
     var docRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
       (hasBanner ? '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/banner.' + ext + '"/>' : "") +
+      imgs.all().map(function (e) {
+        return '<Relationship Id="' + e.rid + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="' + e.file + '"/>';
+      }).join("") +
       "</Relationships>";
 
     var files = [
@@ -296,6 +357,9 @@
       { name: "word/_rels/document.xml.rels", data: utf8(docRels) },
     ];
     if (hasBanner) files.push({ name: "word/media/banner." + ext, data: b64ToBytes(spec.banner.base64) });
+    imgs.all().forEach(function (e) {
+      files.push({ name: "word/" + e.file, data: b64ToBytes(e.data) });
+    });
 
     return zipStore(files);
   }
