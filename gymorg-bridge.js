@@ -123,6 +123,10 @@
       // Accepts either a top-level {squadId: headerId} map or a headerId on the
       // squad itself; resolveHeader() checks both, then falls back to a guess.
       squadHeaderMap: raw.squadHeaderMap || raw.lessonPlanSquadHeaders || {},
+      // GymOrgPro's own lesson-plan entries: { [date]: { [squadId]: { [sessionId]:
+      // { circuits:[{stationId, skillIds, kcp, safety}], warmDown, updatedAt } } } }
+      // Chalk reads the coach's typed notes out of here (see lessonPlanFor).
+      lessonPlans: raw.lessonPlans || {},
       blocks: blocks,
       activeBlockId: raw.activeScheduleBlockId || (blocks[0] && blocks[0].id) || null,
       rotationLength: raw.rotationLength || 15,
@@ -381,6 +385,37 @@
     return "data:image/" + ext + ";base64," + header.imageBase64;
   }
 
+  // ---- V5.7: GymOrgPro's own lesson-plan notes ------------------------------
+
+  // The lesson plan a coach typed into GymOrgPro for ONE dated session, or null.
+  // Shape: { circuits: [{stationId, skillIds, kcp, safety}], warmDown, updatedAt }
+  // The circuits array is in rotation order, one per station block of that day.
+  function lessonPlanFor(parsed, dateStr, squadId, sessionId) {
+    var byDate = (parsed.lessonPlans || {})[dateStr] || {};
+    var bySquad = byDate[squadId] || {};
+    return bySquad[sessionId] || null;
+  }
+
+  // Line up GymOrgPro's circuits with Chalk's resolved legs. They're built from
+  // the same allocation grid so index order normally matches exactly; where it
+  // doesn't (e.g. a squad with two sessions in one day), fall back to matching on
+  // stationId so a note still lands on the right rotation rather than the wrong
+  // one. Returns an array the same length as legs, holding a circuit or null.
+  function circuitsForLegs(plan, legs) {
+    var cs = (plan && plan.circuits) || [];
+    var used = {};
+    return (legs || []).map(function (leg, i) {
+      var c = cs[i];
+      if (c && (!c.stationId || !leg.stationId || c.stationId === leg.stationId)) { used[i] = 1; return c; }
+      var j = -1;
+      for (var k = 0; k < cs.length; k++) {
+        if (!used[k] && cs[k] && cs[k].stationId && cs[k].stationId === leg.stationId) { j = k; break; }
+      }
+      if (j >= 0) { used[j] = 1; return cs[j]; }
+      return null;
+    });
+  }
+
   // ---- V5: warm-up / warm-down ---------------------------------------------
 
   function warmupItems(parsed) { return (parsed.warmup || []).slice(); }
@@ -415,6 +450,8 @@
     headerDataUri: headerDataUri,
     warmupItems: warmupItems,
     warmdownItems: warmdownItems,
+    lessonPlanFor: lessonPlanFor,
+    circuitsForLegs: circuitsForLegs,
     realWeekday: realWeekday,
   };
 })(typeof window !== "undefined" ? window : this);

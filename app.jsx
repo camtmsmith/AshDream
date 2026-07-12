@@ -14,7 +14,7 @@ const CHALK_ALP = window.CHALK_ALP || { cols: [], apparatus: {} };
 const GB = window.GymOrgBridge;
 const LIVE = window.ChalkLive; // read-only live connector to GymOrgPro's Firebase (optional; absent = file-only)
 const imgSrc = (f) => "images/" + f;
-const APP_VERSION = "v5.6";
+const APP_VERSION = "v5.8";
 const MONTHS3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const fmtShortDate = (iso) => { const p = String(iso || "").split("-"); return p.length === 3 ? `${+p[2]} ${MONTHS3[+p[1] - 1]}` : iso; };
 
@@ -100,6 +100,9 @@ const IconDumbbell = (p) => <Icon {...p} path={<><path d="M17.596 12.768a2 2 0 1
 const IconUpload = (p) => <Icon {...p} path={<><path d="M12 3v12" /><path d="m17 8-5-5-5 5" /><path d="M5 21h14" /></>} />;
 const IconDownload = (p) => <Icon {...p} path={<><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></>} />;
 const IconRefresh = (p) => <Icon {...p} path={<><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 4v6h-6" /></>} />;
+const IconGrip = (p) => <Icon {...p} path={<path d="M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01" />} />;
+const IconChevronUp = (p) => <Icon {...p} path={<path d="m18 15-6-6-6 6" />} />;
+const IconChevronDown = (p) => <Icon {...p} path={<path d="m6 9 6 6 6-6" />} />;
 const IconUsers = (p) => <Icon {...p} path={<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>} />;
 const IconCalendar = (p) => <Icon {...p} path={<><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4" /><path d="M8 2v4" /><path d="M3 10h18" /></>} />;
 
@@ -276,7 +279,7 @@ function ChalkApp() {
     setSelected((prev) => {
       const next = { ...prev };
       if (next[key]) delete next[key];
-      else next[key] = { level, slot: targetSlot, section: sectionName, group: group.group, name: skill.name, cues: skill.cues || [], img: skill.img || [], color: APP_COLORS[sectionName] || NAVY };
+      else next[key] = { level, slot: targetSlot, ord: nextOrd(prev, targetSlot), section: sectionName, group: group.group, name: skill.name, cues: skill.cues || [], img: skill.img || [], color: APP_COLORS[sectionName] || NAVY };
       return next;
     });
   }
@@ -287,24 +290,89 @@ function ChalkApp() {
       if (next[key]) delete next[key];
       else {
         const cues = [`Family: ${entry.f}`, `Difficulty: ${entry.d || "—"}`, `Pathway skill (${levelLabel})`];
-        next[key] = { level, slot: targetSlot, section: sectionName, group: entry.f, name: entry.s, cues, img: [], color: APP_COLORS[sectionName] || NAVY, alp: true };
+        next[key] = { level, slot: targetSlot, ord: nextOrd(prev, targetSlot), section: sectionName, group: entry.f, name: entry.s, cues, img: [], color: APP_COLORS[sectionName] || NAVY, alp: true };
       }
       return next;
     });
   }
 
   const selectedList = Object.entries(selected);
+  // Every entry carries an `ord` — its position INSIDE its block. That's what
+  // makes the lesson plan re-orderable (see moveSkill): the object itself is a
+  // map, so without an explicit order the rows would just sit in the order they
+  // happened to be ticked. Entries saved before ordering existed have no `ord`;
+  // they keep their insertion order and get numbered on load (see withOrds).
+  const byOrd = (a, b) => (a.ord == null ? 1e9 : a.ord) - (b.ord == null ? 1e9 : b.ord);
   const bySection = useMemo(() => {
     const map = {};
     selectedList.forEach(([id, v]) => { (map[v.section] = map[v.section] || []).push({ id, ...v }); });
+    Object.keys(map).forEach((k) => map[k].sort(byOrd));
     return map;
   }, [selected]);
   // Skills grouped by rotation slot — this is what the lesson plan renders from.
   const bySlot = useMemo(() => {
     const map = {};
     selectedList.forEach(([id, v]) => { const s = slotOf(v); (map[s] = map[s] || []).push({ id, ...v }); });
+    Object.keys(map).forEach((k) => map[k].sort(byOrd));
     return map;
   }, [selected, gLegs, stationMap, hasSession]);
+
+  // Next free position at the BOTTOM of a block (new ticks append, they don't
+  // jump the queue).
+  function nextOrd(plan, slot) {
+    let max = -1;
+    Object.values(plan).forEach((v) => { if (v.slot === slot && typeof v.ord === "number" && v.ord > max) max = v.ord; });
+    return max + 1;
+  }
+  // Number any entries that don't have a position yet, per block, keeping the
+  // order they're already in. Run whenever a plan is loaded from storage.
+  function withOrds(plan) {
+    const groups = {};
+    Object.entries(plan).forEach(([id, v]) => { const k = String(v.slot); (groups[k] = groups[k] || []).push([id, v]); });
+    const out = {};
+    Object.values(groups).forEach((list) => {
+      let max = -1;
+      list.forEach(([, v]) => { if (typeof v.ord === "number" && v.ord > max) max = v.ord; });
+      list.forEach(([id, v]) => { out[id] = (typeof v.ord === "number") ? v : { ...v, ord: ++max }; });
+    });
+    return out;
+  }
+
+  // Drop one skill at a given position inside its block (this is what a drag
+  // commits). Renumbers the whole block so positions stay 0..n-1 — and pins any
+  // legacy entry to where it's currently displayed.
+  function moveSkillTo(slotId, id, toIndex) {
+    setSelected((prev) => {
+      const list = Object.entries(prev)
+        .filter(([, v]) => slotOf(v) === slotId)
+        .sort((a, b) => byOrd(a[1], b[1]));
+      const from = list.findIndex(([k]) => k === id);
+      if (from < 0) return prev;
+      const to = Math.max(0, Math.min(toIndex, list.length - 1));
+      if (to === from) return prev;
+      const [item] = list.splice(from, 1);
+      list.splice(to, 0, item);
+      const next = { ...prev };
+      list.forEach(([k, v], n) => { next[k] = { ...v, slot: slotId, ord: n }; });
+      return next;
+    });
+  }
+
+  // Keyboard fallback (focus a drag handle, press ↑ / ↓) — same renumbering.
+  function moveSkill(slotId, id, dir) {
+    setSelected((prev) => {
+      const list = Object.entries(prev)
+        .filter(([, v]) => slotOf(v) === slotId)
+        .sort((a, b) => byOrd(a[1], b[1]));
+      const i = list.findIndex(([k]) => k === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= list.length) return prev;
+      const swap = list[i]; list[i] = list[j]; list[j] = swap;
+      const next = { ...prev };
+      list.forEach(([k, v], n) => { next[k] = { ...v, slot: slotId, ord: n }; });
+      return next;
+    });
+  }
   const orderedSections = useMemo(() => ["Warm-up", ...apparatusList].filter((s) => bySection[s]), [apparatusList, bySection]);
 
   function clearAll() {
@@ -613,7 +681,7 @@ function ChalkApp() {
         const name = (w.name || "").trim();
         if (!name) return;
         out[`${slot}|GOP::${slot}::${i}`] = {
-          level, slot, section, group: section, name,
+          level, slot, ord: i, section, group: section, name,
           duration: Number(w.duration) || 0, gop: true,
           cues: [], img: [], color: slot === "W" ? (APP_COLORS["Warm-up"] || NAVY) : "#64748b",
         };
@@ -640,7 +708,7 @@ function ChalkApp() {
       if (prevKey !== undefined) plansRef.current = { ...plansRef.current, [prevKey]: selected };
       loadedKeyRef.current = currentPlanKey;
       LS.set("chalk-gymorg-plans", plansRef.current);
-      let incoming = plansRef.current[currentPlanKey] || {};
+      let incoming = withOrds(plansRef.current[currentPlanKey] || {});
       // First time we open this lesson, drop GymOrgPro's warm-up/warm-down in.
       if (hasSession && !seededRef.current[currentPlanKey]) {
         incoming = { ...gopSeed(), ...incoming };
@@ -657,6 +725,70 @@ function ChalkApp() {
     const t = setTimeout(() => LS.set("chalk-gymorg-plans", plansRef.current), 400);
     return () => clearTimeout(t);
   }, [selected, currentPlanKey, hasSession]);
+
+  // ---- GymOrgPro's own notes, brought across as rotation items --------------
+  // A coach who typed KCP / safety notes into GymOrgPro's lesson-plan pop-up
+  // shouldn't have to retype them here. Each note comes across as an item in the
+  // matching rotation (warm-down notes land in the Warm-down block), sitting
+  // ABOVE the skills as the brief for that station, and flows into the Word
+  // export — KCP notes as coaching points, safety notes in the Safety column.
+  //
+  // They stay GymOrgPro's: edit the note over there and it re-syncs here (the
+  // note's text is the signature — see the effect below). Delete one here and it
+  // stays gone, because deleting doesn't change GymOrgPro's text. They're never
+  // carried into another lesson by "Copy previous" — they belong to this one.
+  function gopNoteEntries() {
+    if (!gymorg || !gCurrent || !gLegs.length) return {};
+    const plan = GB.lessonPlanFor(gymorg, gCurrent.date, gCurrent.squadId, gCurrent.sessionId);
+    if (!plan) return {};
+    const out = {};
+    const add = (slot, kind, text, section, color, ord) => {
+      const t = String(text || "").trim();
+      if (!t) return;
+      const lines = t.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+      out[`${slot}|GOPNOTE::${slot}::${kind}`] = {
+        level, slot, ord, section, group: kind === "safety" ? "Safety" : "Coach's note",
+        name: lines[0], cues: lines.slice(1), img: [], color,
+        gopNote: true, noteKind: kind,
+      };
+    };
+    const circuits = GB.circuitsForLegs(plan, gLegs);
+    gLegs.forEach((leg, i) => {
+      const c = circuits[i];
+      if (!c) return;
+      const section = stationMap[leg.stationId] || leg.stationName || "";
+      const color = APP_COLORS[stationMap[leg.stationId]] || NAVY;
+      add(i, "kcp", c.kcp, section, color, -2);       // negative ord = above the skills
+      add(i, "safety", c.safety, section, "#b45309", -1);
+    });
+    add("D", "warmdown", plan.warmDown, "Warm-down", "#64748b", -1);
+    return out;
+  }
+
+  // Keep the notes in step with GymOrgPro. The signature is the note TEXT, so a
+  // note only re-appears when it's actually been edited over there — not every
+  // time the roster re-syncs, and not after a coach has deliberately removed it.
+  const noteSigRef = useRef(LS.get("chalk-gymorg-notesig", {}));
+  useEffect(() => {
+    if (!gymorg || !gCurrent) return;
+    if (loadedKeyRef.current !== currentPlanKey) return;   // wait for the plan swap
+    const notes = gopNoteEntries();
+    const sig = JSON.stringify(Object.entries(notes).map(([id, v]) => [id, v.name, v.cues]));
+    if (noteSigRef.current[currentPlanKey] === sig) return;
+    const first = noteSigRef.current[currentPlanKey] === undefined;
+    noteSigRef.current = { ...noteSigRef.current, [currentPlanKey]: sig };
+    LS.set("chalk-gymorg-notesig", noteSigRef.current);
+    const n = Object.keys(notes).length;
+    if (first && !n) return;
+    setSelected((prev) => {
+      const next = {};
+      Object.entries(prev).forEach(([id, v]) => { if (!v.gopNote) next[id] = v; });   // drop the old notes
+      return { ...next, ...notes };
+    });
+    if (n) flashPlan(first
+      ? `Brought ${n} note${n === 1 ? "" : "s"} across from GymOrgPro's lesson plan.`
+      : `Notes updated from GymOrgPro (${n}).`);
+  }, [gymorg, gCurrent, gLegs, currentPlanKey, stationMap]);
 
   function jumpToLeg(stationId, legIdx) { focusSlot(legIdx != null ? legIdx : 0, stationId); }
 
@@ -675,7 +807,7 @@ function ChalkApp() {
   function entriesForLeg(plan, legs, legIdx) {
     const section = legs[legIdx] ? stationMap[legs[legIdx].stationId] : "";
     return Object.entries(plan || {}).filter(([, v]) => {
-      if (v.gop) return false;
+      if (v.gop || v.gopNote) return false;   // GymOrgPro's own items/notes belong to THAT lesson
       if (typeof v.slot === "number") return v.slot === legIdx;
       if (v.slot === "W" || v.slot === "D") return false;
       return !!section && v.section === section;
@@ -728,9 +860,11 @@ function ChalkApp() {
     if (!hit) { flashPlan(`Nothing to copy — no earlier lesson in this block has planned skills for ${leg.stationName || "this station"}.`); return; }
     setSelected((prev) => {
       const next = { ...prev };
-      hit.items.forEach(([id, v]) => {
+      let ord = nextOrd(prev, legIdx);
+      hit.items.slice().sort((a, b) => byOrd(a[1], b[1])).forEach(([id, v]) => {
         const base = id.slice(id.indexOf("|") + 1);   // drop the old slot prefix
-        next[`${legIdx}|${base}`] = { ...v, slot: legIdx };
+        const nid = `${legIdx}|${base}`;
+        next[nid] = { ...v, slot: legIdx, ord: (prev[nid] && typeof prev[nid].ord === "number") ? prev[nid].ord : ord++ };
       });
       return next;
     });
@@ -759,12 +893,13 @@ function ChalkApp() {
         if (!sectionName) return;
         const entries = CHALK_ALP.apparatus[sectionName];
         if (!entries) return;
+        let ord = nextOrd(next, legIdx);
         entries.forEach((entry, idx) => {
           if (entry.t && entry.t[gAlpIdx] != null) {
             const key = `${legIdx}|ALP::${sectionName}::${idx}`;
             if (!next[key]) {
               const cues = [`Family: ${entry.f}`, `Difficulty: ${entry.d || "—"}`, `Pathway skill (auto-suggested)`];
-              next[key] = { level: gMappedLevel, slot: legIdx, section: sectionName, group: entry.f, name: entry.s, cues, img: [], color: APP_COLORS[sectionName] || NAVY, alp: true };
+              next[key] = { level: gMappedLevel, slot: legIdx, ord: ord++, section: sectionName, group: entry.f, name: entry.s, cues, img: [], color: APP_COLORS[sectionName] || NAVY, alp: true };
             }
           }
         });
@@ -799,14 +934,19 @@ function ChalkApp() {
       (groups[slot] = groups[slot] || []).push(v);
     });
 
-    const rowsOf = (arr, equip) => (arr || []).map((v) => ({
-      equipment: equip || v.section || "",
-      skill: v.name,
-      sub: v.group && v.group !== "General" ? v.group : "",
-      kcp: v.cues || [],
-      img: v.img || [],   // diagrams get embedded in the Word file
-      safety: "",
-    }));
+    // A GymOrgPro safety note belongs in the Safety column, not the Skill one.
+    const rowsOf = (arr, equip) => (arr || []).slice().sort(byOrd).map((v) => (
+      v.gopNote && v.noteKind === "safety"
+        ? { equipment: equip || v.section || "", skill: "Safety", sub: "", kcp: [], img: [], safety: [v.name].concat(v.cues || []).join(" ") }
+        : {
+            equipment: equip || v.section || "",
+            skill: v.name,
+            sub: v.group && v.group !== "General" ? v.group : "",
+            kcp: v.cues || [],
+            img: v.img || [],   // diagrams get embedded in the Word file
+            safety: "",
+          }
+    ));
 
     const circuits = legs.map((leg, i) => ({
       title: `Circuit ${i + 1} \u2014 ${leg.gap ? "Open" : (leg.stationName || "Station")} \u2014 ${leg.minutes} mins`,
@@ -820,7 +960,7 @@ function ChalkApp() {
     // Activity/Duration rows; anything else they added becomes Skill/KCP rows.
     const wAll = groups["W"] || [], dAll = groups["D"] || [];
     const warmActs = wAll.filter((v) => v.gop).map((v) => ({ name: v.name, duration: v.duration }));
-    const coolActs = dAll.filter((v) => v.gop).map((v) => ({ name: v.name, duration: v.duration }));
+    const coolActs = dAll.filter((v) => v.gop && !v.gopNote).map((v) => ({ name: v.name, duration: v.duration }));
     const warmSkills = rowsOf(wAll.filter((v) => !v.gop), "Warm-up");
     const coolSkills = rowsOf(dAll.filter((v) => !v.gop), "Warm-down");
 
@@ -870,7 +1010,7 @@ function ChalkApp() {
   function prevLesson() { if (gSessionIdx > 0) setGSessionIdx(gSessionIdx - 1); }
 
   const planContext = gCurrent ? `${gSquad ? gSquad.name + " · " : ""}${gCurrent.dow} ${fmtShortDate(gCurrent.date)}` : "";
-  const planProps = { gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, selected, setSelected, setLightbox, orderedSections, bySection, bySlot, targetSlot, focusSlot, level, focus, duration, copyPlan, printPlan, clearAll, planContext, selectedList, exportOne, exportMany, gSessions, gAllDated, prevByLeg, copyPreviousIntoLeg, planFlash, setPlanFlash };
+  const planProps = { gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, selected, setSelected, setLightbox, orderedSections, bySection, bySlot, targetSlot, focusSlot, level, focus, duration, copyPlan, printPlan, clearAll, planContext, selectedList, exportOne, exportMany, gSessions, gAllDated, prevByLeg, copyPreviousIntoLeg, planFlash, setPlanFlash, moveSkill, moveSkillTo };
 
   return (
     <div style={{ fontFamily: "Inter, system-ui, sans-serif", color: INK }} className="min-h-screen bg-slate-100">
@@ -1067,29 +1207,66 @@ function ChalkApp() {
   );
 }
 
-// ---------------------------------------------------------- session plan --
-function LessonPlanDoc({ gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, selected, setSelected, setLightbox, orderedSections, bySection, bySlot, targetSlot, focusSlot, level, focus, duration, copyPlan, printPlan, clearAll, planContext, selectedList, exportOne, exportMany, gSessions, gAllDated, prevByLeg, copyPreviousIntoLeg, planFlash, setPlanFlash }) {
-  const hasSession = !!(gLegs && gLegs.length);
-  const remove = (id) => setSelected((prev) => { const n = { ...prev }; delete n[id]; return n; });
-  const headerUri = gHeader ? GB.headerDataUri(gHeader) : "";
-  const warmupRef = ((gymorg && gymorg.warmup) || []).map((w) => `${(w.name || "").trim()}${w.duration ? ` (${w.duration}m)` : ""}`).filter(Boolean).join(" · ");
-  const warmdownRef = ((gymorg && gymorg.warmdown) || []).map((w) => `${(w.name || "").trim()}${w.duration ? ` (${w.duration}m)` : ""}`).filter(Boolean).join(" · ");
-  const warmdown = (gymorg && gymorg.warmdown) || [];
+// ---------------------------------------------------------- plan blocks ---
+// These three live at MODULE scope on purpose. While they were declared INSIDE
+// LessonPlanDoc they were a brand-new component type on every render, so React
+// couldn't match them up between renders: it tore the whole lesson plan down and
+// rebuilt it every time a skill was ticked. The scrolling container's content
+// briefly went to zero height, which pins scrollTop back to 0 — so the plan
+// jumped up to the warm-up / earlier rotations and away from the rotation being
+// worked on. Stable component types => React patches the rows in place, the
+// scroll position holds, and the selected rotation stays where the coach is.
+const NOTE_LABEL = { kcp: "GymOrgPro note", safety: "GymOrgPro safety", warmdown: "GymOrgPro note" };
 
-  const SkillRow = ({ sk }) => (
-    <li className="group flex items-start gap-2 text-[13px] text-slate-700 py-1">
+// The drag handle (and keyboard reorder) is only wired up inside a rotation
+// block, where an order actually means something — in the no-session view skills
+// just group by apparatus.
+function SkillRow({ sk, index, onDragStart, dragging, onMove, onRemove, setLightbox }) {
+  return (
+    <li ref={(el) => onDragStart && onDragStart.register(index, el)}
+      className={`group flex items-start gap-2 text-[13px] text-slate-700 py-1 ${dragging ? "opacity-60" : ""}`}
+      style={dragging ? { background: "#f8fafc", borderRadius: 6 } : undefined}>
       {sk.img && sk.img.length > 0
         ? <button onClick={() => setLightbox({ imgs: sk.img, name: sk.name })} className="mt-0.5 w-8 h-8 rounded border border-slate-200 overflow-hidden shrink-0 bg-white flex items-center justify-center"><img src={imgSrc(sk.img[0])} alt="" className="max-w-full max-h-full object-contain" /></button>
         : <span className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0" style={{ background: sk.color || NAVY }} />}
       <div className="flex-1 min-w-0">
-        <div className="leading-snug font-medium text-slate-800">{sk.name}{sk.duration ? <span className="ml-1.5 text-[11px] font-semibold text-slate-400">{sk.duration} min</span> : null}</div>
+        <div className="leading-snug font-medium text-slate-800">
+          {sk.gopNote && (
+            <span className="mr-1.5 align-middle text-[9px] font-bold uppercase tracking-wide rounded px-1 py-0.5"
+              style={sk.noteKind === "safety" ? { background: "#fef3c7", color: "#92400e" } : { background: "#e2e8f0", color: "#475569" }}
+              title="Typed into GymOrgPro's lesson plan — edit it there and it re-syncs">
+              {NOTE_LABEL[sk.noteKind] || "GymOrgPro note"}
+            </span>
+          )}
+          {sk.name}{sk.duration ? <span className="ml-1.5 text-[11px] font-semibold text-slate-400">{sk.duration} min</span> : null}
+        </div>
         {(sk.cues || []).length > 0 && <div className="text-[11px] text-slate-500 leading-snug mt-0.5">{sk.cues.join(" · ")}</div>}
       </div>
-      <button onClick={() => remove(sk.id)} className="text-slate-300 hover:text-red-500 shrink-0 mt-0.5" title="Remove"><IconX size={14} /></button>
+      {onDragStart && (
+        // Pointer events (not HTML5 drag-and-drop) so this works with a finger on
+        // a tablet as well as a mouse. touch-none stops the drag from scrolling
+        // the page instead of moving the row.
+        <span
+          onPointerDown={(e) => onDragStart(e, sk.id, index)}
+          onKeyDown={(e) => {
+            if (!onMove) return;
+            if (e.key === "ArrowUp") { e.preventDefault(); onMove(sk.id, -1); }
+            if (e.key === "ArrowDown") { e.preventDefault(); onMove(sk.id, 1); }
+          }}
+          role="button" tabIndex={0} aria-label="Drag to reorder"
+          title="Drag to reorder (or focus and use ↑ / ↓)"
+          className="shrink-0 mt-0.5 text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing touch-none select-none">
+          <IconGrip size={14} />
+        </span>
+      )}
+      <button onClick={() => onRemove(sk.id)} className="text-slate-300 hover:text-red-500 shrink-0 mt-0.5" title="Remove"><IconX size={14} /></button>
     </li>
   );
+}
 
-  const Block = ({ title, color, minutes, skills, onFocus, subtitle, empty }) => (
+// The plain (no GymOrgPro session) block: skills grouped by apparatus.
+function PlanBlock({ title, color, minutes, skills, onFocus, subtitle, empty, onRemove, setLightbox }) {
+  return (
     <div className="rounded-lg border border-slate-200 overflow-hidden">
       <button onClick={onFocus || undefined} disabled={!onFocus} className="w-full flex items-center gap-2 px-3 py-2 text-left disabled:cursor-default" style={{ background: (color || NAVY) + "14" }}>
         <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color || NAVY }} />
@@ -1103,58 +1280,142 @@ function LessonPlanDoc({ gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, s
       <div className="px-3 py-2">
         {subtitle && <div className="text-[11px] text-slate-400 mb-1 leading-snug">{subtitle}</div>}
         {skills && skills.length > 0
-          ? <ul className="divide-y divide-slate-100">{skills.map((sk) => <SkillRow key={sk.id} sk={sk} />)}</ul>
+          ? <ul className="divide-y divide-slate-100">{skills.map((sk) => <SkillRow key={sk.id} sk={sk} onRemove={onRemove} setLightbox={setLightbox} />)}</ul>
           : <div className="text-[12px] text-slate-400 italic py-1">{empty || "No skills yet."}</div>}
       </div>
     </div>
   );
+}
 
-  // A block that can be SELECTED as the target for new skills. Whatever block is
-  // selected receives every skill you tick, from any apparatus.
-  const SlotBlock = ({ slotId, stationId, title, color, minutes, skills, subtitle, empty, prev, onCopyPrev }) => {
-    const active = targetSlot === slotId;
-    const c = color || NAVY;
-    // The header is a div (not a button) because "Copy previous" is a button of
-    // its own, and a button can't legally nest inside another button.
-    const select = () => focusSlot(slotId, stationId);
-    return (
-      <div className="rounded-lg overflow-hidden border transition-shadow" style={active ? { borderColor: c, boxShadow: `0 0 0 2px ${c}33` } : { borderColor: "#e2e8f0" }}>
-        <div role="button" tabIndex={0} onClick={select}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(); } }}
-          className="w-full flex items-center gap-2 px-3 py-2 text-left cursor-pointer select-none" style={{ background: c + (active ? "26" : "14") }}>
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: c }} />
-          <span className="disp text-[13px] font-bold uppercase tracking-wide truncate" style={{ color: c }}>{title}</span>
-          {minutes != null && <span className="text-[11px] text-slate-500 shrink-0">{minutes} min</span>}
-          <span className="ml-auto flex items-center gap-1.5 shrink-0">
-            {skills && skills.length > 0 && <span className="text-[11px] text-slate-400">{skills.length}</span>}
-            {onCopyPrev && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onCopyPrev(); }}
-                disabled={!prev}
-                title={prev
-                  ? `Copy the ${prev.items.length} skill${prev.items.length === 1 ? "" : "s"} planned for this station on ${prev.session.dow} ${fmtShortDate(prev.session.date)}`
-                  : "No earlier lesson in this block has planned skills for this station yet"}
-                className="text-[10px] font-semibold uppercase tracking-wide rounded px-1.5 py-0.5 border inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-default"
-                style={{ color: c, borderColor: c + "55", background: "#ffffffcc" }}>
-                <IconRefresh size={10} />
-                <span className="hidden sm:inline">Copy previous</span><span className="sm:hidden">Copy</span>
-                {prev && <span className="font-normal opacity-70">{fmtShortDate(prev.session.date)}</span>}
-              </button>
-            )}
-            {active
-              ? <span className="text-[10px] font-bold uppercase tracking-wide text-white rounded px-1.5 py-0.5" style={{ background: c }}>Adding here</span>
-              : <span className="text-[11px] font-semibold inline-flex items-center" style={{ color: c }}>Select<IconChevronRight size={13} /></span>}
-          </span>
-        </div>
-        <div className="px-3 py-2">
-          {subtitle && <div className="text-[11px] text-slate-400 mb-1 leading-snug">{subtitle}</div>}
-          {skills && skills.length > 0
-            ? <ul className="divide-y divide-slate-100">{skills.map((sk) => <SkillRow key={sk.id} sk={sk} />)}</ul>
-            : <div className="text-[12px] text-slate-400 italic py-1">{empty || "No skills yet."}</div>}
-        </div>
-      </div>
-    );
+// A block that can be SELECTED as the target for new skills. Whatever block is
+// selected receives every skill you tick, from any apparatus.
+function SlotBlock({ slotId, stationId, title, color, minutes, skills, subtitle, empty, prev, onCopyPrev, targetSlot, focusSlot, moveSkill, moveSkillTo, onRemove, setLightbox }) {
+  const active = targetSlot === slotId;
+  const c = color || NAVY;
+
+  // ---- drag to reorder ------------------------------------------------------
+  // Pointer events, not HTML5 drag-and-drop: HTML5 drag doesn't fire on touch, and
+  // coaches are on tablets mid-session. The landing spot is recomputed live from
+  // the rows' own rectangles as the finger/mouse moves, so the gap follows your
+  // thumb; the plan itself is only rewritten on release.
+  const rowEls = useRef({});                 // display index -> <li>
+  const dragRef = useRef(null);              // { id, from, to } while dragging
+  const [drag, setDrag] = useState(null);    // mirrored into state to re-render
+
+  const startDrag = (e, id, index) => {
+    if (!moveSkillTo) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const handle = e.currentTarget;
+    try { handle.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
+    dragRef.current = { id, from: index, to: index };
+    setDrag({ id, from: index, to: index });
+
+    const move = (ev) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const y = ev.clientY;
+      // Nudge the lesson-plan column along at its edges, so a row can travel
+      // further than one screenful.
+      const sc = handle.closest ? handle.closest("[data-plan-scroll]") : null;
+      if (sc) {
+        const r = sc.getBoundingClientRect();
+        if (y < r.top + 48) sc.scrollTop -= 12;
+        else if (y > r.bottom - 48) sc.scrollTop += 12;
+      }
+      let to = d.to;
+      for (let i = 0; i < skills.length; i++) {
+        const el = rowEls.current[i];
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        if (y < r.top + r.height / 2) { to = i; break; }
+        to = i;
+      }
+      if (to !== d.to) { dragRef.current = { ...d, to }; setDrag({ ...d, to }); }
+    };
+    const end = (ev) => {
+      const d = dragRef.current;
+      dragRef.current = null;
+      try { handle.releasePointerCapture(ev.pointerId); } catch (err) { /* noop */ }
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", end);
+      handle.removeEventListener("pointercancel", end);
+      setDrag(null);
+      if (d && d.to !== d.from) moveSkillTo(slotId, d.id, d.to);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
   };
+  startDrag.register = (i, el) => { if (el) rowEls.current[i] = el; else delete rowEls.current[i]; };
+
+  // What's on screen mid-drag: the list with the dragged row already sitting where
+  // it would land.
+  const display = (() => {
+    if (!drag) return skills;
+    const arr = (skills || []).slice();
+    const [item] = arr.splice(drag.from, 1);
+    if (!item) return skills;
+    arr.splice(drag.to, 0, item);
+    return arr;
+  })();
+  // The header is a div (not a button) because "Copy previous" is a button of
+  // its own, and a button can't legally nest inside another button.
+  const select = () => focusSlot(slotId, stationId);
+  return (
+    <div className="rounded-lg overflow-hidden border transition-shadow" style={active ? { borderColor: c, boxShadow: `0 0 0 2px ${c}33` } : { borderColor: "#e2e8f0" }}>
+      <div role="button" tabIndex={0} onClick={select}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(); } }}
+        className="w-full flex items-center gap-2 px-3 py-2 text-left cursor-pointer select-none" style={{ background: c + (active ? "26" : "14") }}>
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: c }} />
+        <span className="disp text-[13px] font-bold uppercase tracking-wide truncate" style={{ color: c }}>{title}</span>
+        {minutes != null && <span className="text-[11px] text-slate-500 shrink-0">{minutes} min</span>}
+        <span className="ml-auto flex items-center gap-1.5 shrink-0">
+          {skills && skills.length > 0 && <span className="text-[11px] text-slate-400">{skills.length}</span>}
+          {onCopyPrev && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onCopyPrev(); }}
+              disabled={!prev}
+              title={prev
+                ? `Copy the ${prev.items.length} skill${prev.items.length === 1 ? "" : "s"} planned for this station on ${prev.session.dow} ${fmtShortDate(prev.session.date)}`
+                : "No earlier lesson in this block has planned skills for this station yet"}
+              className="text-[10px] font-semibold uppercase tracking-wide rounded px-1.5 py-0.5 border inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-default"
+              style={{ color: c, borderColor: c + "55", background: "#ffffffcc" }}>
+              <IconRefresh size={10} />
+              <span className="hidden sm:inline">Copy previous</span><span className="sm:hidden">Copy</span>
+              {prev && <span className="font-normal opacity-70">{fmtShortDate(prev.session.date)}</span>}
+            </button>
+          )}
+          {active
+            ? <span className="text-[10px] font-bold uppercase tracking-wide text-white rounded px-1.5 py-0.5" style={{ background: c }}>Adding here</span>
+            : <span className="text-[11px] font-semibold inline-flex items-center" style={{ color: c }}>Select<IconChevronRight size={13} /></span>}
+        </span>
+      </div>
+      <div className="px-3 py-2">
+        {subtitle && <div className="text-[11px] text-slate-400 mb-1 leading-snug">{subtitle}</div>}
+        {display && display.length > 0
+          ? <ul className="divide-y divide-slate-100">{display.map((sk, i) => (
+              <SkillRow key={sk.id} sk={sk} index={i} onRemove={onRemove} setLightbox={setLightbox}
+                onDragStart={moveSkillTo ? startDrag : null}
+                dragging={!!drag && drag.id === sk.id}
+                onMove={moveSkill ? ((id, dir) => moveSkill(slotId, id, dir)) : null} />
+            ))}</ul>
+          : <div className="text-[12px] text-slate-400 italic py-1">{empty || "No skills yet."}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------- session plan --
+function LessonPlanDoc({ gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, selected, setSelected, setLightbox, orderedSections, bySection, bySlot, targetSlot, focusSlot, level, focus, duration, copyPlan, printPlan, clearAll, planContext, selectedList, exportOne, exportMany, gSessions, gAllDated, prevByLeg, copyPreviousIntoLeg, planFlash, setPlanFlash, moveSkill, moveSkillTo }) {
+  const hasSession = !!(gLegs && gLegs.length);
+  const remove = (id) => setSelected((prev) => { const n = { ...prev }; delete n[id]; return n; });
+  const headerUri = gHeader ? GB.headerDataUri(gHeader) : "";
+  const warmupRef = ((gymorg && gymorg.warmup) || []).map((w) => `${(w.name || "").trim()}${w.duration ? ` (${w.duration}m)` : ""}`).filter(Boolean).join(" · ");
+  const warmdownRef = ((gymorg && gymorg.warmdown) || []).map((w) => `${(w.name || "").trim()}${w.duration ? ` (${w.duration}m)` : ""}`).filter(Boolean).join(" · ");
+  const warmdown = (gymorg && gymorg.warmdown) || [];
+  // What the (module-scope) blocks need from this component.
+  const blockProps = { targetSlot, focusSlot, moveSkill, moveSkillTo, onRemove: remove, setLightbox };
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -1168,7 +1429,7 @@ function LessonPlanDoc({ gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, s
         </div>
       </div>
 
-      <div className="max-h-[70vh] lg:max-h-[calc(100vh-9rem)] overflow-auto p-3 space-y-2.5">
+      <div data-plan-scroll className="max-h-[70vh] lg:max-h-[calc(100vh-9rem)] overflow-auto p-3 space-y-2.5">
         {planFlash && (
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600 flex items-start gap-2">
             <span className="flex-1 leading-snug">{planFlash}</span>
@@ -1178,7 +1439,7 @@ function LessonPlanDoc({ gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, s
         {hasSession ? (
           <>
             <SlotBlock slotId="W" title="Warm-up" color={APP_COLORS["Warm-up"] || NAVY} skills={bySlot["W"] || []}
-              empty="Select this block, then add any skills." />
+              {...blockProps} empty="Select this block, then add any skills." />
             {gLegs.map((leg, i) => {
               const app = stationMap[leg.stationId];
               return (
@@ -1187,16 +1448,16 @@ function LessonPlanDoc({ gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, s
                   color={APP_COLORS[app] || NAVY} minutes={leg.minutes} skills={bySlot[i] || []}
                   prev={(prevByLeg && prevByLeg[i]) || null}
                   onCopyPrev={leg.gap || !copyPreviousIntoLeg ? null : () => copyPreviousIntoLeg(i)}
-                  empty="Select this block, then add any skills." />
+                  {...blockProps} empty="Select this block, then add any skills." />
               );
             })}
             <SlotBlock slotId="D" title="Warm-down" color="#64748b" skills={bySlot["D"] || []}
-              empty="Select this block, then add any skills." />
+              {...blockProps} empty="Select this block, then add any skills." />
           </>
         ) : (
           orderedSections.length === 0
             ? <p className="text-sm text-slate-400 text-center py-8">Tick skills in the selector to build the session.<br />They&rsquo;ll appear here grouped by section.</p>
-            : orderedSections.map((sec) => <Block key={sec} title={sec} color={APP_COLORS[sec] || NAVY} skills={bySection[sec] || []} onFocus={null} />)
+            : orderedSections.map((sec) => <PlanBlock key={sec} title={sec} color={APP_COLORS[sec] || NAVY} skills={bySection[sec] || []} onFocus={null} onRemove={remove} setLightbox={setLightbox} />)
         )}
       </div>
 

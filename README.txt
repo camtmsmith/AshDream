@@ -1,5 +1,54 @@
-CHALK — Gymnastics Session Builder (v5.6)
+CHALK — Gymnastics Session Builder (v5.8)
 ========================================
+
+WHAT'S NEW IN v5.8 — DRAG SKILLS TO REORDER THEM
+The up/down arrows are gone. Each row in a rotation now has a grip handle on the
+right: press it and drag the row where you want it. The gap opens up under your
+finger as you go, and the plan is rewritten when you let go. Drag to the top or
+bottom edge of the plan column and it scrolls along with you, so a skill can be
+moved further than one screenful.
+
+It's built on pointer events, not HTML5 drag-and-drop, so it works with a finger
+on a tablet exactly as it does with a mouse — HTML5 drag never fires on touch.
+Keyboard still works too: tab to a handle and press the up/down arrow keys.
+
+Order is per block, saved with the lesson, carried by "Copy previous", and it's
+the order the Word document prints in.
+
+FIXED IN v5.7.1 — THE PLAN NO LONGER JUMPS BACK TO THE TOP
+Ticking a skill made the lesson plan scroll up to the warm-up / earlier
+rotations, so the rotation you were filling scrolled out of view. Cause: the
+plan's blocks and rows were defined INSIDE the plan component, which made them a
+new component type on every render — React threw the whole plan away and rebuilt
+it on each tick, which collapses the scrolling area and pins it back to the top.
+They're now defined once, so React updates the rows in place: the scroll position
+holds and the selected rotation stays put and stays selected.
+
+WHAT'S NEW IN v5.7 — GYMORGPRO'S NOTES COME ACROSS + RE-ORDERABLE ROTATIONS
+
+1. NOTES FROM GYMORGPRO APPEAR AS ITEMS IN THE ROTATION
+Anything typed into GymOrgPro's lesson-plan pop-up for a session — a circuit's
+KCP note, its Safety note, the Warm-down notes — now comes across into Chalk as
+an item in the matching block, tagged "GymOrgPro note" (safety notes in amber).
+They sit ABOVE the skills, as the brief for that station.
+
+  • They stay GymOrgPro's: edit the note over there and it re-syncs here, live.
+  • Delete one here and it stays deleted (that doesn't change GymOrgPro's text,
+    so nothing re-adds it) — it's your lesson to shape.
+  • They are NOT carried into other lessons by "Copy previous" — a note belongs
+    to the lesson it was written for.
+  • In the Word export, a KCP note prints as coaching points and a Safety note
+    prints in the Safety column, in the circuit it belongs to.
+  • Notes are matched to rotations by position, falling back to the station, so a
+    note lands on the right circuit even in an odd two-sessions-in-a-day case.
+
+2. RE-ORDER SKILLS INSIDE A ROTATION
+Every row in the lesson plan now has up/down arrows. Rotations run in order, so
+the plan should too: put the drill before the skill, the shape before the
+tumble. Ordering is per block, saved with the lesson, carried by "Copy previous",
+and it's the order the Word document prints in. New skills you tick are added to
+the bottom of the block. (Plans built in earlier versions keep the order they're
+already in — the first move you make just locks it in.)
 
 WHAT'S NEW IN v5.6 — "COPY PREVIOUS" ON EVERY ROTATION
 Each rotation block now has a "Copy previous" button next to Select / Adding
