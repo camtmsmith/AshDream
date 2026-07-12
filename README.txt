@@ -1,5 +1,30 @@
-CHALK — Gymnastics Session Builder (v5.4)
+CHALK — Gymnastics Session Builder (v5.5)
 ========================================
+
+WHAT'S NEW IN v5.5 — OPEN A LESSON STRAIGHT FROM GYMORGPRO'S CALENDAR
+In GymOrgPro's Calendar tab, every session row now has a "Chalk ↗" button (and
+the lesson-plan pop-up has "Edit in Chalk ↗"). Click it and Chalk opens in a new
+tab already on THAT lesson — right roster, right block, right squad, right date,
+with the real rotation, coach and times loaded. No connecting, no picking a
+roster, no hunting for the date.
+
+How it works: the button opens Chalk with the lesson named in the address, e.g.
+  https://camtmsmith.github.io/AshDream/?roster=default&block=calb_x
+       &squad=sq_x&session=ses_x&date=2026-08-04
+Chalk connects to that roster on the live (read-only) link and lands on the
+matching lesson. The link carries POINTERS only — never a copy of the schedule —
+so it can't go stale, and Chalk still can't write anything back to GymOrgPro.
+Links are shareable/bookmarkable: send one to another coach and it opens the
+same lesson for them.
+
+Setup: in GymOrgPro's index.html, CHALK_URL (near FIREBASE_CONFIG at the top of
+the script) points at where Chalk is hosted. It ships set to
+https://camtmsmith.github.io/AshDream/ — change it if Chalk moves. Both apps must
+be on the same Firebase project (they are).
+
+If a link can't be resolved (the lesson was deleted, or it belongs to a different
+GymOrgPro location than the one that's active), Chalk says so and drops you into
+the normal GymOrgPro panel to pick a lesson by hand.
 
 WHAT'S NEW IN v5.4 — WARM-UP / WARM-DOWN ITEMS ARE EDITABLE
 GymOrgPro's warm-up and warm-down items (Leg Strength, Shaping, Stretch Program,

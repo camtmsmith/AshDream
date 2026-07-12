@@ -14,9 +14,47 @@ const CHALK_ALP = window.CHALK_ALP || { cols: [], apparatus: {} };
 const GB = window.GymOrgBridge;
 const LIVE = window.ChalkLive; // read-only live connector to GymOrgPro's Firebase (optional; absent = file-only)
 const imgSrc = (f) => "images/" + f;
-const APP_VERSION = "v5.4";
+const APP_VERSION = "v5.5";
 const MONTHS3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const fmtShortDate = (iso) => { const p = String(iso || "").split("-"); return p.length === 3 ? `${+p[2]} ${MONTHS3[+p[1] - 1]}` : iso; };
+
+// ---------------------------------------------------------------------------
+// DEEP LINK from GymOrgPro — "open THIS lesson in Chalk".
+//
+// GymOrgPro's calendar links straight to Chalk with the lesson identified in the
+// query string:
+//
+//   https://camtmsmith.github.io/AshDream/?roster=ROSTERID&block=BLOCKID
+//        &squad=SQUADID&session=SESSIONID&date=YYYY-MM-DD
+//
+// Those are exactly the four things Chalk needs to land on one specific lesson:
+// which gym (roster) to read live, which schedule block, which squad, and which
+// dated session. Everything else (rotation, coach, warm-up, header) Chalk still
+// derives from the live roster itself, so a link never carries stale schedule
+// data — only a pointer.
+//
+// Query string is used (not the hash) because GitHub Pages serves the app at a
+// fixed path and the hash is free for future in-app routing. Params are read
+// from BOTH ?query and #hash so a link still works if a host rewrites one.
+// ---------------------------------------------------------------------------
+function readDeepLink() {
+  try {
+    const search = new URLSearchParams(window.location.search || "");
+    const h = window.location.hash || "";
+    const hq = h.indexOf("?") >= 0 ? new URLSearchParams(h.slice(h.indexOf("?"))) : null;
+    const get = (k) => (search.get(k) || (hq && hq.get(k)) || "").trim();
+    const rosterId = get("roster");
+    if (!rosterId) return null;
+    return {
+      rosterId,
+      blockId: get("block"),
+      squadId: get("squad"),
+      sessionId: get("session"),
+      date: get("date"),
+      gymName: get("gym"),
+    };
+  } catch (e) { return null; }
+}
 
 const NAVY = "#211a4d";
 const INK = "#1b1930";
@@ -140,6 +178,11 @@ function ChalkApp() {
   const [liveStatus, setLiveStatus] = useState("");     // "", "connecting", "live"
   const liveUnsubRef = useRef(null);
   const autoPickedRef = useRef(false); // has the first roster been auto-opened?
+  // Deep link (?roster=&block=&squad=&session=&date=) — a lesson opened straight
+  // from GymOrgPro's calendar. Held in a ref so it's consumed exactly once, and
+  // mirrored into state only so the banner can re-render.
+  const deepLinkRef = useRef(readDeepLink());
+  const [deepLink, setDeepLink] = useState(() => deepLinkRef.current ? "loading" : ""); // "" | "loading" | "done" | "error"
 
   const apparatusHasAlp = !!CHALK_ALP.apparatus[tab];
   useEffect(() => { if (!apparatusHasAlp && mode === "alp") setMode("club"); }, [tab]);
@@ -415,16 +458,23 @@ function ChalkApp() {
   function applyParsed(parsed) {
     setGymorg(parsed);
     setGymorgError("");
+    // A pending deep link wins over everything: it names the exact block+squad
+    // the coach clicked in GymOrgPro. (Only while unconsumed — once resolved,
+    // normal "keep where the user is" behaviour resumes, so a live re-sync from
+    // GymOrgPro never yanks them back to the linked lesson.)
+    const dl = deepLinkRef.current;
+    const dlBlock = (dl && dl.blockId && parsed.blocks.some((b) => b.id === dl.blockId)) ? dl.blockId : "";
     // Keep the user's current block if it still exists (so a live re-sync doesn't
     // jump them), else the active block, else the first block.
-    const bid = (gBlockId && parsed.blocks.some((b) => b.id === gBlockId)) ? gBlockId
+    const bid = dlBlock || ((gBlockId && parsed.blocks.some((b) => b.id === gBlockId)) ? gBlockId
       : (parsed.activeBlockId && parsed.blocks.some((b) => b.id === parsed.activeBlockId) ? parsed.activeBlockId
-      : (parsed.blocks[0] ? parsed.blocks[0].id : ""));
+      : (parsed.blocks[0] ? parsed.blocks[0].id : "")));
     // Default the squad to one that's actually scheduled in that block, not just
     // the first squad in the org (which may not train in this block at all).
     const blk = parsed.blocks.find((b) => b.id === bid);
     const blockSquads = (blk && blk.squadIds && blk.squadIds.length) ? blk.squadIds : parsed.squads.map((s) => s.id);
-    const sid = (gSquadId && blockSquads.indexOf(gSquadId) !== -1) ? gSquadId : (blockSquads[0] || "");
+    const dlSquad = (dl && dl.squadId && blockSquads.indexOf(dl.squadId) !== -1) ? dl.squadId : "";
+    const sid = dlSquad || ((gSquadId && blockSquads.indexOf(gSquadId) !== -1) ? gSquadId : (blockSquads[0] || ""));
     setGBlockId(bid);
     setGSquadId(sid);
     setGSessionIdx((idx) => idx || 0);
@@ -486,8 +536,56 @@ function ChalkApp() {
 
   useEffect(() => () => { if (liveUnsubRef.current) liveUnsubRef.current(); }, []);
 
+  // ---- Deep link: opened from a lesson in GymOrgPro's calendar --------------
+  // On load, skip the roster picker entirely: connect live, subscribe to the
+  // roster named in the URL, and (below) land on the exact lesson. Read-only as
+  // always — the link is a pointer, not a hand-off of data.
+  useEffect(() => {
+    const dl = deepLinkRef.current;
+    if (!dl) return;
+    if (!LIVE || !LIVE.available()) {
+      deepLinkRef.current = null;
+      setDeepLink("error");
+      setGymorgError("This link points at a GymOrgPro lesson, but the live connection isn't available. Load a backup .json instead.");
+      return;
+    }
+    autoPickedRef.current = true; // the link IS the pick — don't let connectLive override it
+    connectLive();                // still loads the roster list, so the dropdown works afterwards
+    selectLiveRoster(dl.rosterId);
+  }, []);
+
   // Reset to the first lesson whenever the block or squad changes.
   useEffect(() => { setGSessionIdx(0); }, [gBlockId, gSquadId]);
+
+  // ...then, once the linked roster has arrived and the block/squad have settled,
+  // jump to the exact dated session. Declared AFTER the reset effect above so it
+  // runs second in the same commit and wins. Consumes the link (ref -> null) so
+  // later live re-syncs leave the coach wherever they've navigated to.
+  useEffect(() => {
+    const dl = deepLinkRef.current;
+    if (!dl || !gymorg) return;
+    const fail = (msg) => { deepLinkRef.current = null; setDeepLink("error"); setGymorgError(msg); setGymorgOpen(true); };
+    if (dl.blockId && !gymorg.blocks.some((b) => b.id === dl.blockId)) {
+      return fail("That lesson's schedule block isn't in this roster — it may belong to a different GymOrgPro location. Switch location in GymOrgPro, or pick the block below.");
+    }
+    if (dl.blockId && gBlockId !== dl.blockId) return;   // still settling
+    if (dl.squadId && gSquadId !== dl.squadId) return;
+    if (!gSessions.length) return;                        // rotations not built yet
+
+    const key = GB.datedKey(dl.date, dl.squadId, dl.sessionId);
+    let idx = gSessions.findIndex((s) => s.key === key);
+    if (idx === -1) idx = gSessions.findIndex((s) => s.date === dl.date && s.sessionId === dl.sessionId);
+    if (idx === -1) idx = gSessions.findIndex((s) => s.date === dl.date); // same day, different session id
+    if (idx === -1) {
+      return fail("Couldn't find that lesson in the live schedule — it may have been moved or deleted since the link was made. Pick a lesson below.");
+    }
+    deepLinkRef.current = null;
+    setGSessionIdx(idx);
+    setActiveSlot(null);                       // start on the first rotation
+    const lvl = squadMap[dl.squadId];
+    if (lvl && ALL_LEVELS.includes(lvl)) setLevel(lvl); // open at the squad's Chalk level
+    setDeepLink("done");
+  }, [gymorg, gBlockId, gSquadId, gSessions, squadMap]);
 
   const gMappedLevel = gSquad ? (squadMap[gSquad.id] || "") : "";
   const gAlpIdx = gSquad ? (alpMap[gSquad.id] != null ? alpMap[gSquad.id] : 3) : 3;
@@ -711,6 +809,25 @@ function ChalkApp() {
           </button>
         </div>
       </header>
+
+      {/* Opened from a lesson in GymOrgPro's calendar (?roster=&block=&squad=&session=&date=) */}
+      {deepLink === "loading" && (
+        <div className="max-w-6xl mx-auto px-4 pt-4">
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm text-indigo-900 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+            Opening this lesson from GymOrgPro&hellip;
+          </div>
+        </div>
+      )}
+      {deepLink === "done" && gCurrent && (
+        <div className="max-w-6xl mx-auto px-4 pt-4">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900 flex items-center gap-2">
+            <IconLayers size={14} />
+            <span><b>{gCurrent.squadName}</b> &middot; {gCurrent.dow} {fmtShortDate(gCurrent.date)} &middot; opened from GymOrgPro. Skills you tick are saved in Chalk; GymOrgPro&rsquo;s schedule is never changed.</span>
+            <button onClick={() => setDeepLink("")} className="ml-auto text-emerald-700/70 hover:text-emerald-900 font-bold px-1">&times;</button>
+          </div>
+        </div>
+      )}
 
       {gymorgOpen && (
         <div className="max-w-6xl mx-auto px-4 pt-4">
