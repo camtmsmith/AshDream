@@ -1,5 +1,33 @@
-CHALK — Gymnastics Session Builder (v5.8)
+CHALK — Gymnastics Session Builder (v5.9)
 ========================================
+
+WHAT'S NEW IN v5.9
+
+1. FIXED — NOTES TYPED IN GYMORGPRO WEREN'T REACHING CHALK
+Two causes, both fixed:
+  a) "Edit in Chalk" sat right next to "Save Lesson Plan", and notes typed into
+     the pop-up live only in the browser until Save is pressed. Chalk reads the
+     DATABASE, so unsaved notes simply weren't there to find. "Edit in Chalk" now
+     SAVES the lesson plan first, then opens. Closing the pop-up with unsaved
+     notes also warns you now.
+  b) Firebase doesn't store arrays as arrays — it keys them by index and drops
+     empty members, so a plan whose first circuit was an unallocated gap came back
+     as an object with holes. Chalk now normalises that, so a note stays on the
+     circuit it was written for.
+
+2. WARM-UP / WARM-DOWN PRINT AS ONE TABLE
+The document used to print GymOrgPro's activities in an Activity/Duration table
+and Chalk's skills in a separate Skill/KCP table underneath — which threw away
+the order the coach had arranged. They're now ONE table, in the order shown on
+screen, so dragging a skill above the stretch is reflected in the Word file. A
+GymOrgPro activity keeps its duration under its name, in grey.
+
+3. LESSON NOTES CARRIED ACROSS
+GymOrgPro's lesson notes are now a real Notes field at the foot of Chalk's plan,
+not a row in the warm-down block. It's seeded from GymOrgPro, editable here, and
+it prints into the Notes box of the Word document (which used to always be empty).
+Edit the notes in GymOrgPro and they re-sync — unless you've since typed your own
+here, in which case yours are kept.
 
 WHAT'S NEW IN v5.8 — DRAG SKILLS TO REORDER THEM
 The up/down arrows are gone. Each row in a rotation now has a grip handle on the

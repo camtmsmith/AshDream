@@ -393,7 +393,10 @@
   function lessonPlanFor(parsed, dateStr, squadId, sessionId) {
     var byDate = (parsed.lessonPlans || {})[dateStr] || {};
     var bySquad = byDate[squadId] || {};
-    return bySquad[sessionId] || null;
+    var plan = bySquad[sessionId];
+    if (!plan) return null;
+    // circuits may come back from Firebase as an index-keyed object (see toArray)
+    return { circuits: toArray(plan.circuits), warmDown: plan.warmDown || "", updatedAt: plan.updatedAt || 0 };
   }
 
   // Line up GymOrgPro's circuits with Chalk's resolved legs. They're built from
@@ -401,8 +404,25 @@
   // doesn't (e.g. a squad with two sessions in one day), fall back to matching on
   // stationId so a note still lands on the right rotation rather than the wrong
   // one. Returns an array the same length as legs, holding a circuit or null.
+  // Firebase's Realtime Database doesn't store arrays as arrays: it stores them
+  // keyed by index, drops empty members, and only hands back a real array when the
+  // keys are a contiguous 0..n. A lesson plan whose first circuit is an unallocated
+  // gap (no station, no notes) therefore comes back as {"1": {...}, "2": {...}} —
+  // an object, with holes. Normalise it back into a positional array so a note
+  // stays on the circuit it was written for.
+  function toArray(v) {
+    if (Array.isArray(v)) return v;
+    if (!v || typeof v !== "object") return [];
+    var out = [];
+    Object.keys(v).forEach(function (k) {
+      var i = Number(k);
+      if (!isNaN(i) && i >= 0) out[i] = v[k];
+    });
+    return out;
+  }
+
   function circuitsForLegs(plan, legs) {
-    var cs = (plan && plan.circuits) || [];
+    var cs = toArray(plan && plan.circuits);
     var used = {};
     return (legs || []).map(function (leg, i) {
       var c = cs[i];
@@ -452,6 +472,7 @@
     warmdownItems: warmdownItems,
     lessonPlanFor: lessonPlanFor,
     circuitsForLegs: circuitsForLegs,
+    toArray: toArray,
     realWeekday: realWeekday,
   };
 })(typeof window !== "undefined" ? window : this);
