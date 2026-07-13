@@ -14,7 +14,7 @@ const CHALK_ALP = window.CHALK_ALP || { cols: [], apparatus: {} };
 const GB = window.GymOrgBridge;
 const LIVE = window.ChalkLive; // read-only live connector to GymOrgPro's Firebase (optional; absent = file-only)
 const imgSrc = (f) => "images/" + f;
-const APP_VERSION = "v5.8";
+const APP_VERSION = "v5.9";
 const MONTHS3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const fmtShortDate = (iso) => { const p = String(iso || "").split("-"); return p.length === 3 ? `${+p[2]} ${MONTHS3[+p[1] - 1]}` : iso; };
 
@@ -458,6 +458,14 @@ function ChalkApp() {
       <table class="warm"><tbody><tr><td class="wt" colspan="4" style="font-style:italic;color:#555">${warmdownItems.length ? esc(warmdownItems.join(" · ")) : "Gymnasts stand on line. Coach dismisses gymnasts."}</td></tr></tbody></table>
       ${coolSkills.length ? `<table class="circ"><thead><tr><th class="eq">Equipment</th><th class="sk">Skill</th><th class="kcp">KCP</th><th class="safe">Safety</th></tr></thead><tbody>${skillRows(coolSkills, "Warm-down")}</tbody></table>` : ""}`;
 
+    // The Notes box that closes the document: the gym's standing notes from
+    // GymOrgPro, then this lesson's own. Same content as the Word export's.
+    const notesText = notesFor(currentPlanKey);
+    const notesBlock = `<div class="bar">Notes</div>
+      <table class="warm"><tbody><tr><td class="wt" style="font-weight:400;min-height:52px">${
+        notesText ? notesText.split(/\r?\n/).filter(Boolean).map((l) => `<div>${esc(l)}</div>`).join("") : "&nbsp;<br>&nbsp;"
+      }</td></tr></tbody></table>`;
+
     const metaBits = [
       totalMins ? `Duration: <b>${esc(totalMins)} min</b>` : "",
       timeStr ? `Time: ${esc(timeStr)}` : "",
@@ -494,7 +502,7 @@ function ChalkApp() {
       ${headerUri ? `<img class="banner" src="${headerUri}"/>` : ""}
       <div class="hd"><div><div class="club">Gymnastics Lesson Plan</div><h1>${esc(title)}</h1>${subtitle ? `<div class="sub">${esc(subtitle)}</div>` : ""}</div>
         <div class="meta">${metaBits}</div></div>
-      ${warmBlock}${circuitsHtml || "<p style='font-family:Arial;color:#888'>No skills selected yet.</p>"}${coolBlock}
+      ${warmBlock}${circuitsHtml || "<p style='font-family:Arial;color:#888'>No skills selected yet.</p>"}${coolBlock}${notesBlock}
       <div class="foot">KCP = Key Coaching Points &nbsp;·&nbsp; Key: Coach position</div>
       <script>window.onload=()=>{setTimeout(()=>window.print(),450)}<\/script></body></html>`);
     win.document.close();
@@ -669,6 +677,31 @@ function ChalkApp() {
   const seededRef = useRef(LS.get("chalk-gymorg-seeded", {}));
   const loadedKeyRef = useRef(undefined);
   const currentPlanKey = gKey || "__manual__";
+
+  // ---- The Notes box at the bottom of the plan (new in v5.9) ----------------
+  // GymOrgPro owns the STANDING notes: whatever is typed into "Lesson Plan
+  // Notes" on its Lesson Plans tab (between Warm-up and Warm-down) arrives here
+  // through the live/backup bridge and heads every plan's Notes box. It is read
+  // only in Chalk — edit it over there and it re-syncs here, like everything
+  // else GymOrgPro owns.
+  //
+  // Underneath it, a coach can add notes for THIS lesson only. Those are
+  // Chalk's, kept per dated session and persisted to localStorage, and both
+  // halves print into the Notes box of the Word export.
+  const gopNotes = useMemo(
+    () => (gymorg ? (GB.notesText ? GB.notesText(gymorg) : String(gymorg.notes || "").trim()) : ""),
+    [gymorg]
+  );
+  const [lessonNotes, setLessonNotes] = useState(() => LS.get("chalk-lesson-notes", {}));
+  useEffect(() => {
+    const t = setTimeout(() => LS.set("chalk-lesson-notes", lessonNotes), 400);
+    return () => clearTimeout(t);
+  }, [lessonNotes]);
+  const myNote = lessonNotes[currentPlanKey] || "";
+  const setMyNote = (text) => setLessonNotes((prev) => ({ ...prev, [currentPlanKey]: text }));
+  // What actually goes in the Notes box of a given lesson's document: the gym's
+  // standing notes, then that lesson's own.
+  const notesFor = (key) => [gopNotes, (lessonNotes[key] || "").trim()].filter(Boolean).join("\n");
 
   // GymOrgPro's standard warm-up / warm-down items, turned into ordinary plan
   // entries so a coach can see them in the block and REMOVE any that don't apply
@@ -981,6 +1014,9 @@ function ChalkApp() {
         warmupRows: warmSkills,
         warmdownRows: coolSkills,
         circuits,
+        // The Notes box at the bottom: GymOrgPro's standing lesson-plan notes,
+        // then anything the coach added for this lesson in Chalk.
+        notes: notesFor(s.key),
       },
       filename: ChalkDocx.safeName(
         `${s.date.slice(0, 4)}_${s.squadName}_${gBlock ? gBlock.name : ""}_Week_${week}_${MONTHS_FULL[Number(s.date.slice(5, 7)) - 1]}_${Number(s.date.slice(8, 10))}_${DAYS_FULL[s.weekday]}`
@@ -1010,7 +1046,7 @@ function ChalkApp() {
   function prevLesson() { if (gSessionIdx > 0) setGSessionIdx(gSessionIdx - 1); }
 
   const planContext = gCurrent ? `${gSquad ? gSquad.name + " · " : ""}${gCurrent.dow} ${fmtShortDate(gCurrent.date)}` : "";
-  const planProps = { gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, selected, setSelected, setLightbox, orderedSections, bySection, bySlot, targetSlot, focusSlot, level, focus, duration, copyPlan, printPlan, clearAll, planContext, selectedList, exportOne, exportMany, gSessions, gAllDated, prevByLeg, copyPreviousIntoLeg, planFlash, setPlanFlash, moveSkill, moveSkillTo };
+  const planProps = { gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, selected, setSelected, setLightbox, orderedSections, bySection, bySlot, targetSlot, focusSlot, level, focus, duration, copyPlan, printPlan, clearAll, planContext, selectedList, exportOne, exportMany, gSessions, gAllDated, prevByLeg, copyPreviousIntoLeg, planFlash, setPlanFlash, moveSkill, moveSkillTo, gopNotes, myNote, setMyNote };
 
   return (
     <div style={{ fontFamily: "Inter, system-ui, sans-serif", color: INK }} className="min-h-screen bg-slate-100">
@@ -1287,6 +1323,51 @@ function PlanBlock({ title, color, minutes, skills, onFocus, subtitle, empty, on
   );
 }
 
+// ---------------------------------------------------------------- notes ----
+// The Notes box at the bottom of the lesson plan, mirroring the Notes box at
+// the bottom of the printed/Word document. Two halves:
+//
+//   • GymOrgPro's standing notes — typed into "Lesson Plan Notes" on its Lesson
+//     Plans tab, between Warm-up and Warm-down. Read-only here (GymOrgPro is
+//     the source of truth); edit them there and they re-sync live.
+//   • This lesson's own notes — Chalk's, saved per dated session.
+//
+// Both print into the Notes box of the exported document, standing notes first.
+// Defined at module scope, like the other blocks, so React updates it in place
+// instead of throwing the plan away on every keystroke (see v5.7.1).
+function NotesBlock({ gopNotes, value, onChange }) {
+  return (
+    <div className="rounded-lg border border-slate-200 overflow-hidden">
+      <div className="w-full flex items-center gap-2 px-3 py-2" style={{ background: "#64748b14" }}>
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: "#64748b" }} />
+        <span className="disp text-[13px] font-bold uppercase tracking-wide" style={{ color: "#64748b" }}>Notes</span>
+        <span className="ml-auto text-[10px] text-slate-400 shrink-0">Bottom of the lesson plan</span>
+      </div>
+      <div className="px-3 py-2 space-y-2">
+        {gopNotes ? (
+          <div className="rounded-md bg-slate-50 border border-slate-200 px-2.5 py-2">
+            <span className="inline-block text-[9px] font-bold uppercase tracking-wide rounded px-1.5 py-0.5 mb-1" style={{ background: "#e2e8f0", color: "#475569" }}>
+              GymOrgPro note
+            </span>
+            <p className="text-[12px] text-slate-600 leading-snug whitespace-pre-wrap">{gopNotes}</p>
+          </div>
+        ) : (
+          <div className="text-[12px] text-slate-400 italic">
+            No standing notes set in GymOrgPro (Lesson Plans → Lesson Plan Notes).
+          </div>
+        )}
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          rows={3}
+          placeholder="Notes for this lesson only — added underneath the gym's notes in the Word export."
+          className="w-full text-[12px] text-slate-700 leading-snug rounded-md border border-slate-200 px-2.5 py-2 resize-y focus:outline-none focus:border-slate-400"
+        />
+      </div>
+    </div>
+  );
+}
+
 // A block that can be SELECTED as the target for new skills. Whatever block is
 // selected receives every skill you tick, from any apparatus.
 function SlotBlock({ slotId, stationId, title, color, minutes, skills, subtitle, empty, prev, onCopyPrev, targetSlot, focusSlot, moveSkill, moveSkillTo, onRemove, setLightbox }) {
@@ -1407,7 +1488,7 @@ function SlotBlock({ slotId, stationId, title, color, minutes, skills, subtitle,
 }
 
 // ---------------------------------------------------------- session plan --
-function LessonPlanDoc({ gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, selected, setSelected, setLightbox, orderedSections, bySection, bySlot, targetSlot, focusSlot, level, focus, duration, copyPlan, printPlan, clearAll, planContext, selectedList, exportOne, exportMany, gSessions, gAllDated, prevByLeg, copyPreviousIntoLeg, planFlash, setPlanFlash, moveSkill, moveSkillTo }) {
+function LessonPlanDoc({ gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, selected, setSelected, setLightbox, orderedSections, bySection, bySlot, targetSlot, focusSlot, level, focus, duration, copyPlan, printPlan, clearAll, planContext, selectedList, exportOne, exportMany, gSessions, gAllDated, prevByLeg, copyPreviousIntoLeg, planFlash, setPlanFlash, moveSkill, moveSkillTo, gopNotes, myNote, setMyNote }) {
   const hasSession = !!(gLegs && gLegs.length);
   const remove = (id) => setSelected((prev) => { const n = { ...prev }; delete n[id]; return n; });
   const headerUri = gHeader ? GB.headerDataUri(gHeader) : "";
@@ -1453,11 +1534,15 @@ function LessonPlanDoc({ gymorg, gCurrent, gSquad, gHeader, gLegs, stationMap, s
             })}
             <SlotBlock slotId="D" title="Warm-down" color="#64748b" skills={bySlot["D"] || []}
               {...blockProps} empty="Select this block, then add any skills." />
+            <NotesBlock gopNotes={gopNotes} value={myNote} onChange={setMyNote} />
           </>
         ) : (
           orderedSections.length === 0
             ? <p className="text-sm text-slate-400 text-center py-8">Tick skills in the selector to build the session.<br />They&rsquo;ll appear here grouped by section.</p>
-            : orderedSections.map((sec) => <PlanBlock key={sec} title={sec} color={APP_COLORS[sec] || NAVY} skills={bySection[sec] || []} onFocus={null} onRemove={remove} setLightbox={setLightbox} />)
+            : <>
+                {orderedSections.map((sec) => <PlanBlock key={sec} title={sec} color={APP_COLORS[sec] || NAVY} skills={bySection[sec] || []} onFocus={null} onRemove={remove} setLightbox={setLightbox} />)}
+                <NotesBlock gopNotes={gopNotes} value={myNote} onChange={setMyNote} />
+              </>
         )}
       </div>
 

@@ -146,6 +146,16 @@
       "</w:tbl>";
   }
 
+  // The Notes box at the bottom of the plan. One paragraph per line, so a
+  // multi-line note (GymOrgPro's standing notes, then anything the coach added
+  // for this lesson) keeps its shape in Word. Empty = one blank line to write on.
+  function notesXml(text) {
+    var lines = String(text || "").split(/\r?\n/).map(function (l) { return l.trim(); });
+    var kept = lines.filter(function (l) { return !!l; });
+    if (!kept.length) return para("");
+    return kept.map(function (l) { return para(run(l)); }).join("");
+  }
+
   // Activity / Duration table (warm-up and warm-down).
   function activityTable(items) {
     var head = "<w:tr>" +
@@ -261,6 +271,8 @@
   //   warmup:   [{name, duration}],
   //   warmdown: [{name, duration}],
   //   circuits: [{ title, rows: [{equipment, skill, sub, kcp:[], safety}] }],
+  //   notes: "free text for the Notes box at the bottom (GymOrgPro's standing
+  //           lesson-plan notes, plus anything the coach added in Chalk)",
   // }
   function buildDocx(spec) {
     spec = spec || {};
@@ -318,7 +330,7 @@
       sectionBar("Warm-down") + activityTable(spec.warmdown && spec.warmdown.length ? spec.warmdown : [{ name: "Gymnasts stand on line. Coach dismisses gymnasts.", duration: "" }]) + coolSkillsXml + SPACER +
       "<w:tbl>" + tblPr(9639) + '<w:tblGrid><w:gridCol w:w="9639"/></w:tblGrid>' +
         "<w:tr>" + cell(9639, para(run("Notes", { b: true })), "BFBFBF") + "</w:tr>" +
-        "<w:tr>" + cell(9639, para("")) + "</w:tr>" +
+        "<w:tr>" + cell(9639, notesXml(spec.notes)) + "</w:tr>" +
       "</w:tbl>" + SPACER +
       sectionBar("Key: Coach position", "C2D69B", "26331A") +
       '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>';

@@ -119,6 +119,10 @@
       headers: raw.lessonPlanHeaders || [],
       warmup: raw.lessonPlanWarmup || [],
       warmdown: raw.lessonPlanWarmdown || [],
+      // V5.9: the standing "Lesson Plan Notes" text GymOrgPro keeps between its
+      // Warm-up and Warm-down panels. It belongs in the Notes box at the bottom
+      // of the plan — see notesText() and Chalk's Notes block.
+      notes: typeof raw.lessonPlanNotes === "string" ? raw.lessonPlanNotes : "",
       // Explicit squad->header map if GymOrgPro ever stores one (see notes).
       // Accepts either a top-level {squadId: headerId} map or a headerId on the
       // squad itself; resolveHeader() checks both, then falls back to a guess.
@@ -393,10 +397,7 @@
   function lessonPlanFor(parsed, dateStr, squadId, sessionId) {
     var byDate = (parsed.lessonPlans || {})[dateStr] || {};
     var bySquad = byDate[squadId] || {};
-    var plan = bySquad[sessionId];
-    if (!plan) return null;
-    // circuits may come back from Firebase as an index-keyed object (see toArray)
-    return { circuits: toArray(plan.circuits), warmDown: plan.warmDown || "", updatedAt: plan.updatedAt || 0 };
+    return bySquad[sessionId] || null;
   }
 
   // Line up GymOrgPro's circuits with Chalk's resolved legs. They're built from
@@ -404,25 +405,8 @@
   // doesn't (e.g. a squad with two sessions in one day), fall back to matching on
   // stationId so a note still lands on the right rotation rather than the wrong
   // one. Returns an array the same length as legs, holding a circuit or null.
-  // Firebase's Realtime Database doesn't store arrays as arrays: it stores them
-  // keyed by index, drops empty members, and only hands back a real array when the
-  // keys are a contiguous 0..n. A lesson plan whose first circuit is an unallocated
-  // gap (no station, no notes) therefore comes back as {"1": {...}, "2": {...}} —
-  // an object, with holes. Normalise it back into a positional array so a note
-  // stays on the circuit it was written for.
-  function toArray(v) {
-    if (Array.isArray(v)) return v;
-    if (!v || typeof v !== "object") return [];
-    var out = [];
-    Object.keys(v).forEach(function (k) {
-      var i = Number(k);
-      if (!isNaN(i) && i >= 0) out[i] = v[k];
-    });
-    return out;
-  }
-
   function circuitsForLegs(plan, legs) {
-    var cs = toArray(plan && plan.circuits);
+    var cs = (plan && plan.circuits) || [];
     var used = {};
     return (legs || []).map(function (leg, i) {
       var c = cs[i];
@@ -440,6 +424,13 @@
 
   function warmupItems(parsed) { return (parsed.warmup || []).slice(); }
   function warmdownItems(parsed) { return (parsed.warmdown || []).slice(); }
+
+  // ---- V5.9: standing lesson-plan notes -------------------------------------
+  // GymOrgPro's Lesson Plans tab has a Notes box between Warm-up and Warm-down.
+  // Whatever is typed there is standing text for EVERY plan, so it lands in the
+  // Notes box at the bottom of the lesson plan — in GymOrgPro's own Word export
+  // and, via this, in Chalk's plan and Chalk's Word export.
+  function notesText(parsed) { return String((parsed && parsed.notes) || "").trim(); }
 
   // ---- export ---------------------------------------------------------------
 
@@ -470,9 +461,9 @@
     headerDataUri: headerDataUri,
     warmupItems: warmupItems,
     warmdownItems: warmdownItems,
+    notesText: notesText,
     lessonPlanFor: lessonPlanFor,
     circuitsForLegs: circuitsForLegs,
-    toArray: toArray,
     realWeekday: realWeekday,
   };
 })(typeof window !== "undefined" ? window : this);
