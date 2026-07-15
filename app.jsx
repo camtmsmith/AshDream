@@ -14,7 +14,7 @@ const CHALK_ALP = window.CHALK_ALP || { cols: [], apparatus: {} };
 const GB = window.GymOrgBridge;
 const LIVE = window.ChalkLive; // read-only live connector to GymOrgPro's Firebase (optional; absent = file-only)
 const imgSrc = (f) => "images/" + f;
-const APP_VERSION = "v5.9";
+const APP_VERSION = "v5.10";
 const MONTHS3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const fmtShortDate = (iso) => { const p = String(iso || "").split("-"); return p.length === 3 ? `${+p[2]} ${MONTHS3[+p[1] - 1]}` : iso; };
 
@@ -1745,7 +1745,7 @@ function GymOrgPanel(props) {
           {gymorg.headers && gymorg.headers.length > 0 && (
             <label className="flex items-center gap-1.5 text-slate-600">Lesson plan header:
               <select value={headerMap[gSquad.id] || ""} onChange={(e) => { const m = { ...headerMap, [gSquad.id]: e.target.value }; setHeaderMap(m); LS.set("chalk-gymorg-headermap", m); }} className="bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-sm">
-                <option value="">{(() => { const g = GB.guessHeaderId(gymorg, gSquad.id); const gn = g && (gymorg.headers.find((h) => h.id === g) || {}).name; return gn ? `Auto — ${gn}` : "Auto — none"; })()}</option>
+                <option value="">{(() => { const h = GB.resolveHeader(gymorg, gSquad.id, {}); return h && h.name ? `Auto — ${h.name}` : "Auto — none"; })()}</option>
                 {gymorg.headers.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
               </select>
             </label>

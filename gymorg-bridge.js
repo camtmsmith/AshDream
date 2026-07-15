@@ -116,17 +116,22 @@
       squadTypes: raw.squadTypes || [],
       stations: raw.stations,
       staff: raw.staff || raw.coaches || [],
-      headers: raw.lessonPlanHeaders || [],
+      headers: raw.lessonPlanHeaders || raw.headers || [],
       warmup: raw.lessonPlanWarmup || [],
       warmdown: raw.lessonPlanWarmdown || [],
       // V5.9: the standing "Lesson Plan Notes" text GymOrgPro keeps between its
       // Warm-up and Warm-down panels. It belongs in the Notes box at the bottom
       // of the plan — see notesText() and Chalk's Notes block.
       notes: typeof raw.lessonPlanNotes === "string" ? raw.lessonPlanNotes : "",
-      // Explicit squad->header map if GymOrgPro ever stores one (see notes).
-      // Accepts either a top-level {squadId: headerId} map or a headerId on the
-      // squad itself; resolveHeader() checks both, then falls back to a guess.
-      squadHeaderMap: raw.squadHeaderMap || raw.lessonPlanSquadHeaders || {},
+      // V5.10: explicit squad->header map. GymOrgPro's header manager stores its
+      // assignments as a "use for" squad list ON EACH HEADER (the chips in its
+      // UI), not as a top-level {squadId: headerId} map — so this is now built
+      // by buildSquadHeaderMap(), which merges, in rising priority:
+      //   • each header's use-for list (h.useFor / h.squadIds / h.squads / …)
+      //   • a headerId stored on the squad itself
+      //   • any top-level map GymOrgPro exports (several key spellings)
+      // Squads and headers may be referenced by id OR by name; both resolve.
+      squadHeaderMap: buildSquadHeaderMap(raw),
       // GymOrgPro's own lesson-plan entries: { [date]: { [squadId]: { [sessionId]:
       // { circuits:[{stationId, skillIds, kcp, safety}], warmDown, updatedAt } } } }
       // Chalk reads the coach's typed notes out of here (see lessonPlanFor).
@@ -347,6 +352,70 @@
     return String(s || "").trim().toLowerCase().split(/\s+/)[0] || "";
   }
 
+  function normName(s) {
+    return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+  }
+
+  // V5.10: pull GymOrgPro's OWN squad<->header assignments out of a raw backup,
+  // whatever shape they were stored in, and return a plain {squadId: headerId}
+  // map. This is what makes the header manager's "use for" chips come across:
+  // previously only a top-level map was read, which GymOrgPro doesn't export,
+  // so every squad fell back to the name guess — fine for "Springers", useless
+  // for "Foundation Cup" -> GPS or the Competitive squads.
+  function buildSquadHeaderMap(raw) {
+    var squads = raw.squads || [];
+    var headers = raw.lessonPlanHeaders || raw.headers || [];
+
+    // resolve a squad reference (id or name) to a squad id
+    var squadByKey = {};
+    squads.forEach(function (s) {
+      if (s.id != null) squadByKey[String(s.id)] = s.id;
+      if (s.name) squadByKey[normName(s.name)] = s.id;
+    });
+    function toSquadId(ref) {
+      if (ref == null) return null;
+      return squadByKey[String(ref)] || squadByKey[normName(ref)] || null;
+    }
+    // resolve a header reference (id or name) to a header id
+    var headerByKey = {};
+    headers.forEach(function (h) {
+      if (h.id != null) headerByKey[String(h.id)] = h.id;
+      if (h.name) headerByKey[normName(h.name)] = h.id;
+    });
+    function toHeaderId(ref) {
+      if (ref == null) return null;
+      return headerByKey[String(ref)] || headerByKey[normName(ref)] || null;
+    }
+
+    var map = {};
+    // 1. LOWEST priority: each header's "use for" squad list (the chips).
+    //    Accept the field names GymOrgPro has used or might plausibly use;
+    //    entries may be squad ids or squad names.
+    headers.forEach(function (h) {
+      var uses = h.useFor || h.useForSquadIds || h.squadIds || h.squads ||
+                 h.assignedSquads || h.assignedSquadIds || h.assigned || [];
+      if (!Array.isArray(uses)) uses = Object.keys(uses || {});
+      uses.forEach(function (ref) {
+        var sid = toSquadId(ref);
+        if (sid != null && h.id != null) map[sid] = h.id;
+      });
+    });
+    // 2. a headerId stored on the squad itself
+    squads.forEach(function (s) {
+      var hid = toHeaderId(s.headerId || s.lessonPlanHeaderId || s.header);
+      if (hid != null) map[s.id] = hid;
+    });
+    // 3. HIGHEST priority: any top-level map, keys may be ids or names,
+    //    values may be header ids or header names.
+    var top = raw.squadHeaderMap || raw.lessonPlanSquadHeaders ||
+              raw.lessonPlanHeaderMap || raw.headerAssignments || {};
+    Object.keys(top).forEach(function (k) {
+      var sid = toSquadId(k), hid = toHeaderId(top[k]);
+      if (sid != null && hid != null) map[sid] = hid;
+    });
+    return map;
+  }
+
   // Best-guess header for a squad by name, used to pre-fill the mapping before a
   // coach confirms it (and until GymOrgPro stores an explicit map). Matches when
   // the squad name starts with, or shares its first word with, a header name;
@@ -360,25 +429,41 @@
     (parsed.headers || []).forEach(function (h) {
       var hn = String(h.name || "").trim().toLowerCase();
       if (!hn) return;
-      var hit = sn === hn || sn.indexOf(hn) === 0 || snFirst === firstWord(hn);
+      // V5.10: also match the header name anywhere in the squad name on a word
+      // boundary ("WAG Competitive 3" hits "Competitive"), not just as a prefix.
+      var hit = sn === hn || sn.indexOf(hn) === 0 || snFirst === firstWord(hn) ||
+                (" " + sn + " ").indexOf(" " + hn + " ") >= 0 ||
+                (" " + sn).indexOf(" " + hn + " ") >= 0;
       if (hit && hn.length > bestLen) { best = h.id; bestLen = hn.length; }
     });
     return best;
   }
 
   // Resolve which header a squad's plan should use, in priority order:
-  //   1. explicit map in the backup (squadHeaderMap[squadId], or squad.headerId)
-  //   2. a Chalk-side override map the coach has set   {squadId: headerId}
+  //   1. a Chalk-side override the coach has set here   {squadId: headerId}
+  //   2. GymOrgPro's own assignment (squadHeaderMap, built in parseBackup from
+  //      the header manager's "use for" lists / squad.headerId / top-level map)
   //   3. the name-based guess
+  // V5.10: a candidate that points at a header which no longer exists (it was
+  // removed in GymOrgPro's header manager) is SKIPPED, not returned as null —
+  // the resolver falls through to the next source instead of losing the banner.
+  // The coach's Chalk-side pick now also outranks the backup, since it is the
+  // more deliberate of the two ("" in the override map still means auto).
   // Returns the header object (with imageBase64/ext/width/height) or null.
   function resolveHeader(parsed, squadId, overrideMap) {
     var sq = (parsed.squads || []).find(function (x) { return x.id === squadId; }) || {};
-    var id =
-      (parsed.squadHeaderMap && parsed.squadHeaderMap[squadId]) ||
-      sq.headerId ||
-      (overrideMap && overrideMap[squadId]) ||
-      guessHeaderId(parsed, squadId);
-    return id ? headerById(parsed, id) : null;
+    var candidates = [
+      overrideMap && overrideMap[squadId],
+      parsed.squadHeaderMap && parsed.squadHeaderMap[squadId],
+      sq.headerId,
+      guessHeaderId(parsed, squadId),
+    ];
+    for (var i = 0; i < candidates.length; i++) {
+      if (!candidates[i]) continue;
+      var h = headerById(parsed, candidates[i]);
+      if (h) return h;
+    }
+    return null;
   }
 
   // A data: URI for a header image, ready to drop into <img src> or a docx image.

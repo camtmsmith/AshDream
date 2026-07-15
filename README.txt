@@ -1,5 +1,29 @@
-CHALK — Gymnastics Session Builder (v5.9)
+CHALK — Gymnastics Session Builder (v5.10)
 ========================================
+
+WHAT'S NEW IN v5.10 — GYMORGPRO'S HEADER ASSIGNMENTS NOW COME ACROSS
+GymOrgPro's header manager assigns each lesson-plan banner to squads with its
+"use for" chips — but those assignments are stored ON EACH HEADER, and Chalk
+was only reading a top-level squad→header map that GymOrgPro never exports.
+Every squad therefore fell back to the name guess, which happened to work for
+squads named after their header (Springers) and silently failed for the rest
+— most visibly the Competitive squads and cases like Foundation Cup → GPS.
+
+Fixed in the bridge (no re-import needed — it applies on the next sync):
+
+  • parseBackup() now builds the squad→header map from the headers' own
+    "use for" lists (several field spellings accepted), a headerId stored on
+    the squad, and any top-level map, in that rising priority. Squads and
+    headers may be referenced by id or by name — both resolve.
+  • resolveHeader() no longer dead-ends on a stale reference: if an assigned
+    header was since removed in GymOrgPro, it falls through to the next
+    source instead of losing the banner. A coach's Chalk-side pick now also
+    outranks the backup's assignment (it's the more deliberate of the two);
+    leaving the picker on "Auto" keeps GymOrgPro in charge.
+  • The name guess now matches a header name anywhere in the squad name on a
+    word boundary ("WAG Competitive 2" → Competitive), not just as a prefix.
+  • The header picker's "Auto — …" label now shows the header that will
+    actually be used (GymOrgPro's assignment if there is one), not the guess.
 
 WHAT'S NEW IN v5.9 — THE NOTES BOX AT THE BOTTOM OF THE PLAN
 The lesson plan now ends with a Notes block, the on-screen twin of the Notes box
